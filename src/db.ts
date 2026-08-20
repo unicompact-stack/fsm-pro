@@ -1,71 +1,78 @@
-/**
- * db.ts - IndexedDB persistent storage for FSM tasks.
- * Обеспечивает надёжное хранение задач (включая фото data-URL) в браузере.
- * Перенесено из prototype (js/db.js) с усилением: атомарное сохранение всех задач.
- */
+// Database schema and types for FSM Pro
+// Updated with isNew and createdAt fields for task tracking
 
-const DB_NAME = 'fsm-db';
-const DB_VERSION = 1;
-const STORE_NAME = 'tasks';
-const ALL_KEY = 'fsm_tasks_all';
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const db = (e.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'key' });
-      }
-    };
-    req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result);
-    req.onerror = (e) => reject((e.target as IDBOpenDBRequest).error);
-  });
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'manager' | 'worker' | 'master';
+  avatar?: string;
+  phone?: string;
+  specialization?: string;
 }
 
-export const db = {
-  /** Загрузить все задачи. Возвращает null, если хранилище пустое. */
-  async getTasks<T>(): Promise<T[] | null> {
-    const database = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction(STORE_NAME, 'readonly');
-      const req = tx.objectStore(STORE_NAME).get(ALL_KEY);
-      req.onsuccess = () => {
-        const result = req.result as { key: string; tasks: T[] } | undefined;
-        resolve(result ? result.tasks : null);
-      };
-      req.onerror = () => reject(req.error);
-    });
-  },
+export interface Task {
+  id: number;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedTo?: number;
+  assignedBy?: number;
+  createdAt: string;
+  updatedAt?: string;
+  dueDate?: string;
+  completedAt?: string;
+  location?: string;
+  photos?: string[];
+  comments?: TaskComment[];
+  isNew?: boolean;
+  viewedAt?: string;
+}
 
-  /** Сохранить все задачи одним атомарным объектом. */
-  async saveTasks<T>(tasks: T[]): Promise<void> {
-    const database = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put({ key: ALL_KEY, tasks });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  },
+export interface TaskComment {
+  id: number;
+  taskId: number;
+  userId: number;
+  content: string;
+  createdAt: string;
+}
 
-  /** Полностью очистить хранилище задач. */
-  async clear(): Promise<void> {
-    const database = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).delete(ALL_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  },
-};
+export interface Notification {
+  id: number;
+  userId: number;
+  title: string;
+  message: string;
+  type: 'task_assigned' | 'task_updated' | 'comment' | 'system';
+  read: boolean;
+  createdAt: string;
+  taskId?: number;
+}
 
-/** Проверка доступности IndexedDB */
-export function isIndexedDBAvailable(): boolean {
-  try {
-    return typeof indexedDB !== 'undefined';
-  } catch {
-    return false;
-  }
+export interface FSMState {
+  id: string;
+  name: string;
+  type: 'initial' | 'intermediate' | 'final' | 'choice' | 'event';
+  x: number;
+  y: number;
+}
+
+export interface FSMTransition {
+  id: string;
+  from: string;
+  to: string;
+  event?: string;
+  guard?: string;
+  action?: string;
+}
+
+export interface FSMDiagram {
+  id: number;
+  name: string;
+  description?: string;
+  states: FSMState[];
+  transitions: FSMTransition[];
+  createdAt: string;
+  updatedAt: string;
+  ownerId: number;
 }
