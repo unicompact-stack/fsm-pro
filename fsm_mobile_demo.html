@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>FSM PRO — Демо для исполнителя</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #263238;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 10px;
+    }
+
+    /* Top helper bar */
+    .top-bar {
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+      font-size: 12px;
+    }
+
+    .brand-title {
+      font-weight: 900;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-demo {
+      background: #2CCB70;
+      color: #0f172a;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 99px;
+    }
+
+    .quick-btn {
+      background: #168BEA;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(22, 139, 234, 0.3);
+      transition: transform 0.1s;
+    }
+    .quick-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* Smartphone Frame */
+    .phone-mockup {
+      width: 100%;
+      max-width: 400px;
+      height: 820px;
+      max-height: 94vh;
+      background: #000;
+      border-radius: 46px;
+      padding: 10px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 0 3px #334155;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Dynamic Island */
+    .dynamic-island {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 22px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+    }
+    .island-cam {
+      width: 8px;
+      height: 8px;
+      background: #1e1b4b;
+      border-radius: 50%;
+    }
+
+    /* Inner Screen */
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: #F4F7FA;
+      border-radius: 36px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 38px;
+      background: #fff;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: bold;
+      color: #1e293b;
+      border-bottom: 1px solid #f1f5f9;
+      flex-shrink: 0;
+      z-index: 40;
+    }
+
+    /* Screen Views Container */
+    .screen-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Bottom Home Indicator */
+    .home-bar {
+      height: 16px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .home-pill {
+      width: 120px;
+      height: 4px;
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    /* UI Components */
+    .header-bar {
+      background: #fff;
+      padding: 14px 18px 10px 18px;
+      border-bottom: 1px solid #f1f5f9;
+      flex-shrink: 0;
+    }
+    .header-title {
+      font-size: 20px;
+      font-weight: 900;
+      color: #263238;
+      letter-spacing: -0.5px;
+    }
+    .header-sub {
+      font-size: 11px;
+      color: #7D8790;
+      margin-top: 2px;
+    }
+
+    /* Tabs */
+    .tabs-ribbon {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px 18px 12px 18px;
+      background: #fff;
+      border-bottom: 1px solid #f1f5f9;
+      flex-shrink: 0;
+    }
+    .tabs-ribbon::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+      border: none;
+      background: #f1f5f9;
+      color: #7D8790;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #168BEA;
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(22, 139, 234, 0.25);
+    }
+
+    /* Task Card */
+    .task-list {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .task-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      border: 1px solid #edf2f7;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .task-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+    }
+    .task-card:active {
+      transform: scale(0.98);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .dot-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .badge-status {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 99px;
+      color: white;
+    }
+    .badge-priority {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #eff6ff;
+      color: #168BEA;
+      margin-right: 4px;
+    }
+
+    .task-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #263238;
+      margin-bottom: 4px;
+    }
+    .task-address {
+      font-size: 12px;
+      color: #7D8790;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .card-footer {
+      border-top: 1px solid #f1f5f9;
+      padding-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    /* Detail / Execution Screen Styles */
+    .top-nav {
+      background: #fff;
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .back-btn {
+      background: #f1f5f9;
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: bold;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .content-body {
+      padding: 14px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 80px;
+    }
+
+    .section-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 14px;
+      border: 1px solid #edf2f7;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Fixed Bottom Action Bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 12px 16px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 8px;
+      z-index: 30;
+    }
+    .main-cta {
+      flex: 1;
+      background: #168BEA;
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(22, 139, 234, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.1s;
+    }
+    .main-cta:active { transform: scale(0.98); }
+
+    .main-cta.success {
+      background: #2CCB70;
+      box-shadow: 0 6px 18px rgba(44, 203, 112, 0.3);
+    }
+
+    .icon-action-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      background: #f1f5f9;
+      border: none;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #334155;
+    }
+
+    /* Checklist */
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checklist-item.done {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #065f46;
+    }
+    .checklist-checkbox {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: white;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+    .checklist-item.done .checklist-checkbox {
+      background: #2CCB70;
+      border-color: #2CCB70;
+    }
+
+    /* Photo Grid */
+    .photo-grid {
+      display: grid;
+      grid-cols: 2;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .photo-card {
+      aspect-ratio: 4/3;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      background: #e2e8f0;
+    }
+    .photo-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Modal dialog */
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+      display: flex;
+      align-items: flex-end;
+    }
+    .modal-sheet {
+      width: 100%;
+      background: white;
+      border-radius: 28px 28px 0 0;
+      padding: 20px;
+      max-height: 85%;
+      overflow-y: auto;
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    /* Canvas Signature Pad */
+    .sig-canvas {
+      width: 100%;
+      height: 140px;
+      border: 2px dashed #cbd5e1;
+      border-radius: 16px;
+      background: #f8fafc;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* Progress bar */
+    .prog-track {
+      width: 100%;
+      height: 8px;
+      background: #f1f5f9;
+      border-radius: 99px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .prog-fill {
+      height: 100%;
+      background: #168BEA;
+      border-radius: 99px;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top helper header -->
+  <div class="top-bar">
+    <div class="brand-title">
+      <span>🛠 FSM PRO</span>
+      <span class="badge-demo">ДЕМО ИСПОЛНИТЕЛЯ</span>
+    </div>
+    <button class="quick-btn" onclick="autoFillAndComplete()">✨ Заполнить в 1 клик</button>
+  </div>
+
+  <!-- Main Smartphone Device Mockup -->
+  <div class="phone-mockup">
+    
+    <!-- Dynamic Island -->
+    <div class="dynamic-island">
+      <div class="island-cam"></div>
+    </div>
+
+    <!-- Phone Inner Display -->
+    <div class="phone-screen">
+      
+      <!-- Top Status Bar -->
+      <div class="status-bar">
+        <span id="clock-time">09:41</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span>5G</span>
+          <span>100% 🔋</span>
+        </div>
+      </div>
+
+      <!-- Screen 1: Task List (Default) -->
+      <div id="screen-list" class="screen-content">
+        <div class="header-bar">
+          <h1 class="header-title">Список задач</h1>
+          <p class="header-sub">Мастер: Алексей Смирнов • 4 задания</p>
+        </div>
+
+        <div class="tabs-ribbon">
+          <button class="tab-btn active" onclick="filterTasks('all', this)">Все</button>
+          <button class="tab-btn" onclick="filterTasks('in_progress', this)">В работе (1)</button>
+          <button class="tab-btn" onclick="filterTasks('overdue', this)">Просроченные (1)</button>
+          <button class="tab-btn" onclick="filterTasks('new', this)">Новые (2)</button>
+        </div>
+
+        <div class="task-list" id="task-cards-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Screen 2: Task Details -->
+      <div id="screen-detail" class="screen-content" style="display:none;">
+        <div class="top-nav">
+          <button class="back-btn" onclick="showScreen('list')">←</button>
+          <div style="text-align:center;">
+            <div id="detail-number" style="font-size:10px; font-weight:bold; color:#94a3b8;">ЗК-2026-0842</div>
+            <div id="detail-header-title" style="font-size:13px; font-weight:800; color:#1e293b;">Замена окон</div>
+          </div>
+          <span id="detail-status-pill" class="badge-status" style="background:#168BEA;">В работе</span>
+        </div>
+
+        <div class="content-body">
+          <div class="section-card">
+            <div class="section-title">
+              <span id="detail-work-type" style="color:#168BEA;">Остекление и окна</span>
+              <span id="detail-priority" class="badge-priority">Высокий</span>
+            </div>
+            <p id="detail-desc" style="font-size:13px; color:#334155; line-height:1.4;">
+              Демонтировать старые деревянные окна, установить новые стеклопакеты Rehau, выполнить герметизацию швов и проверить плавность хода створок.
+            </p>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">
+              <span>Адрес и заказчик</span>
+              <span style="color:#168BEA; font-weight:bold; cursor:pointer;" onclick="openMapModal()">Построить маршрут 🗺️</span>
+            </div>
+            <div style="font-size:13px; font-weight:bold; color:#1e293b;" id="detail-address">г. Москва, ул. Ленина, д. 42, кв. 18</div>
+            <div style="font-size:11px; color:#64748b; margin-top:2px;">Подъезд 2 • Этаж 4 • Домофон 18В</div>
+
+            <div style="margin-top:10px; background:#f8fafc; padding:10px; border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:12px; font-weight:bold; color:#1e293b;" id="detail-customer-name">Иванов Иван Петрович</div>
+                <div style="font-size:11px; color:#64748b;" id="detail-customer-phone">+7 (915) 111-22-33</div>
+              </div>
+              <a id="detail-call-btn" href="tel:+79151112233" style="background:#2CCB70; color:white; font-size:11px; font-weight:bold; padding:6px 12px; border-radius:10px; text-decoration:none;">📞 Вызов</a>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">
+              <span>Материалы</span>
+              <span style="color:#64748b;">4 позиции</span>
+            </div>
+            <div id="detail-materials-list" style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <button class="icon-action-btn" onclick="openPhotoModal()" title="Фото">📷</button>
+          <button class="main-cta success" id="detail-start-btn" onclick="showScreen('execution')">
+            ▶ Начать работу / Чек-лист
+          </button>
+        </div>
+      </div>
+
+      <!-- Screen 3: Work Execution (Checklist + Timer) -->
+      <div id="screen-execution" class="screen-content" style="display:none;">
+        <div class="top-nav">
+          <button class="back-btn" onclick="showScreen('detail')">←</button>
+          <div style="text-align:center;">
+            <div style="font-size:10px; font-weight:bold; color:#168BEA;">● В РАБОТЕ</div>
+            <div style="font-size:13px; font-weight:800; color:#1e293b;">Выполнение и Чек-лист</div>
+          </div>
+          <button class="icon-action-btn" style="width:34px; height:34px; font-size:14px;" onclick="openPhotoModal()">📷</button>
+        </div>
+
+        <div class="content-body">
+          <!-- Timer card -->
+          <div style="background:linear-gradient(135deg, #0f172a, #1e293b); color:white; border-radius:20px; padding:16px; text-align:center;">
+            <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">Время на объекте (GPS зафиксирован):</div>
+            <div id="work-timer" style="font-size:32px; font-family:monospace; font-weight:900; letter-spacing:2px; color:#38bdf8;">00:42:15</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:4px;">📍 Координаты: 55.75124, 37.61842</div>
+          </div>
+
+          <!-- Progress -->
+          <div class="section-card">
+            <div class="section-title">
+              <span>Прогресс чек-листа</span>
+              <span id="checklist-counter" style="color:#168BEA; font-weight:bold;">0 из 7 (0%)</span>
+            </div>
+            <div class="prog-track">
+              <div class="prog-fill" id="checklist-prog-bar" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <!-- Interactive checklist -->
+          <div class="section-card">
+            <div class="section-title">
+              <span>Технологические этапы</span>
+              <span style="font-size:10px; color:#94a3b8;">* Обязательно</span>
+            </div>
+            <div id="execution-checklist-container">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <button class="icon-action-btn" onclick="openPhotoModal()" title="Фотоотчёт">📷</button>
+          <button class="main-cta success" onclick="proceedToCompletion()">
+            ✓ Завершить и подписать
+          </button>
+        </div>
+      </div>
+
+      <!-- Screen 4: Completion & Signature -->
+      <div id="screen-completion" class="screen-content" style="display:none;">
+        <div class="top-nav">
+          <button class="back-btn" onclick="showScreen('execution')">←</button>
+          <div style="text-align:center;">
+            <div style="font-size:13px; font-weight:800; color:#1e293b;">Сдача работы заказчику</div>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="content-body">
+          <div class="section-card">
+            <div class="section-title">
+              <span>Проверка готовности к сдаче</span>
+            </div>
+            <div style="font-size:12px; display:flex; flex-direction:column; gap:6px;">
+              <div style="color:#059669; font-weight:bold;">✓ Все обязательные пункты чек-листа выполнены</div>
+              <div style="color:#059669; font-weight:bold;">✓ Фотофиксация «До» и «Результат» загружена (4 фото)</div>
+              <div style="color:#059669; font-weight:bold;">✓ Расход материалов зафиксирован</div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">
+              <span>Электронная подпись заказчика</span>
+              <span style="color:#ef4444; cursor:pointer; font-weight:bold;" onclick="clearSignature()">Очистить 🔄</span>
+            </div>
+            <canvas id="sig-canvas" class="sig-canvas"></canvas>
+            <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:4px;">Распишитесь пальцем или мышкой на поле выше</div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-title">
+              <span>Заключение мастера</span>
+            </div>
+            <textarea style="width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:8px; font-size:12px;" rows="2">Монтаж выполнен в полном объеме, претензий у заказчика нет.</textarea>
+          </div>
+        </div>
+
+        <div class="bottom-bar">
+          <button class="main-cta success" onclick="finishAndShowAct()">
+            📄 Сформировать и отправить Акт
+          </button>
+        </div>
+      </div>
+
+      <!-- Screen 5: Act Success & PDF Viewer -->
+      <div id="screen-act" class="screen-content" style="display:none; padding:16px;">
+        <div style="text-align:center; margin-bottom:14px;">
+          <div style="font-size:36px;">🎉</div>
+          <h2 style="font-size:18px; font-weight:900; color:#1e293b;">Задание успешно закрыто!</h2>
+          <p style="font-size:11px; color:#64748b;">Акт приёма-сдачи сформирован и подписан</p>
+        </div>
+
+        <!-- Act Printable Card -->
+        <div style="background:white; border-radius:18px; padding:16px; border:1px solid #cbd5e1; font-size:11px; line-height:1.5;">
+          <div style="border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:8px;">
+            <div style="font-weight:bold; color:#94a3b8; font-size:9px;">ООО «МОНТАЖ-СЕРВИС ПРО»</div>
+            <div style="font-weight:900; font-size:13px; color:#0f172a;">АКТ ВЫПОЛНЕННЫХ РАБОТ № ЗК-2026-0842</div>
+            <div style="color:#64748b; font-size:10px;">Дата: 19 августа 2026 г.</div>
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <b>Заказчик:</b> Иванов И. П. (ул. Ленина, д. 42)<br>
+            <b>Исполнитель:</b> Смирнов Алексей (Оконные конструкции)<br>
+            <b>Вид работ:</b> Замена окон Rehau (2 комплекта)<br>
+            <b>Время работы:</b> 3 ч. 20 мин.
+          </div>
+
+          <div style="background:#f8fafc; padding:8px; border-radius:8px; margin-bottom:8px; border:1px solid #e2e8f0;">
+            <b>Подтверждение чек-листа:</b> 7 из 7 этапов выполнено.<br>
+            <b>Фотофиксация:</b> 4 снимка прикреплены в S3.<br>
+            <b>GPS верификация:</b> 55.75124, 37.61842
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #cbd5e1; padding-top:8px;">
+            <div>
+              <span style="font-size:9px; color:#64748b;">Подпись заказчика:</span><br>
+              <span style="font-family:cursive; font-size:16px; color:#168BEA;">Иванов И. П. (электронная)</span>
+            </div>
+            <span style="background:#ecfdf5; color:#059669; font-weight:bold; padding:3px 8px; border-radius:99px; font-size:9px;">Работы приняты</span>
+          </div>
+        </div>
+
+        <button class="main-cta" style="margin-top:16px;" onclick="showScreen('list')">
+          Вернуться к списку задач
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div id="modal-map" class="modal-overlay" style="display:none;">
+    <div class="modal-sheet">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:14px; font-weight:900;">Маршрут на объект</h3>
+        <button style="background:none; border:none; font-size:16px; font-weight:bold; cursor:pointer;" onclick="closeModal('modal-map')">✕</button>
+      </div>
+      <div style="height:180px; background:#e2e8f0; border-radius:16px; display:flex; align-items:center; justify-content:center; flex-direction:column; color:#475569; font-size:12px; margin-bottom:12px;">
+        <div style="font-size:28px;">🗺️</div>
+        <b>Яндекс Карты / 2ГИС</b>
+        <span>Время в пути: 18 мин (8.4 км)</span>
+      </div>
+      <button class="main-cta" onclick="closeModal('modal-map')">Закрыть навигатор</button>
+    </div>
+  </div>
+
+  <!-- Photos Modal -->
+  <div id="modal-photos" class="modal-overlay" style="display:none;">
+    <div class="modal-sheet">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:14px; font-weight:900;">Фотоотчёт (4 снимка)</h3>
+        <button style="background:none; border:none; font-size:16px; font-weight:bold; cursor:pointer;" onclick="closeModal('modal-photos')">✕</button>
+      </div>
+      <div class="photo-grid" style="margin-bottom:14px;">
+        <div class="photo-card">
+          <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400&q=80" alt="До" />
+        </div>
+        <div class="photo-card">
+          <img src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400&q=80" alt="До" />
+        </div>
+        <div class="photo-card">
+          <img src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=400&q=80" alt="Процесс" />
+        </div>
+        <div class="photo-card">
+          <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&q=80" alt="Результат" />
+        </div>
+      </div>
+      <button class="main-cta" onclick="closeModal('modal-photos')">Готово</button>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    const TASKS = [
+      {
+        id: 'task-1',
+        number: 'ЗК-2026-0842',
+        title: 'Замена окон',
+        workType: 'Остекление и окна',
+        status: 'in_progress',
+        statusText: 'В работе',
+        statusColor: '#168BEA',
+        priority: 'Высокий',
+        address: 'г. Москва, ул. Ленина, д. 42, кв. 18',
+        customer: 'Иванов Иван Петрович',
+        phone: '+7 (915) 111-22-33',
+        desc: 'Демонтировать старые окна, установить новые стеклопакеты Rehau, выполнить герметизацию и проверить работу створок.',
+        checklist: [
+          { title: 'Старое окно демонтировано', req: true, done: true },
+          { title: 'Проём очищен от пыли', req: true, done: true },
+          { title: 'Новое окно выставлено по уровню', req: true, done: true },
+          { title: 'Нанесена монтажная пена', req: true, done: false },
+          { title: 'Выполнена гидроизоляция', req: true, done: false },
+          { title: 'Установлены откосы и подоконник', req: false, done: false },
+          { title: 'Рабочее место убрано', req: true, done: false },
+        ],
+        materials: [
+          { name: 'Стеклопакет Rehau 1400x1300', qty: '2 шт.' },
+          { name: 'Пена монтажная Soudal Pro', qty: '3 баллона' },
+          { name: 'Герметик акриловый', qty: '2 шт.' }
+        ]
+      },
+      {
+        id: 'task-2',
+        number: 'ЗК-2026-0843',
+        title: 'Прокладка электрического кабеля',
+        workType: 'Электромонтажные работы',
+        status: 'new',
+        statusText: 'Новая',
+        statusColor: '#2CCB70',
+        priority: 'Срочно',
+        address: 'г. Москва, пр-кт Мира, д. 102, кв. 74',
+        customer: 'Смирнова Ольга Викторовна',
+        phone: '+7 (926) 333-44-55',
+        desc: 'Штробление стен в 3 комнатах, прокладка кабеля ВВГнг-LS 3x2.5, установка 12 подрозетников.',
+        checklist: [
+          { title: 'Линия обесточена', req: true, done: false },
+          { title: 'Штробление стен', req: true, done: false },
+          { title: 'Кабель затянут в гофру', req: true, done: false },
+          { title: 'Проверка сопротивления', req: true, done: false }
+        ],
+        materials: [
+          { name: 'Кабель ВВГнг-LS 3x2.5', qty: '100 м' },
+          { name: 'Гофра ПВХ d20', qty: '100 м' }
+        ]
+      },
+      {
+        id: 'task-3',
+        number: 'ЗК-2026-0839',
+        title: 'Укладка плитки',
+        workType: 'Плиточные работы',
+        status: 'overdue',
+        statusText: 'Просрочена',
+        statusColor: '#F04444',
+        priority: 'Высокий',
+        address: 'г. Москва, ул. Тверская, д. 12, кв. 5',
+        customer: 'Козлов Андрей Николаевич',
+        phone: '+7 (903) 777-66-55',
+        desc: 'Облицовка стен керамогранитом 60x60 см в санузле.',
+        checklist: [
+          { title: 'Основание загрунтовано', req: true, done: true },
+          { title: 'Плитка уложена по СВП', req: true, done: true },
+          { title: 'Швы затерты и очищены', req: true, done: false }
+        ],
+        materials: [
+          { name: 'Керамогранит 60х60', qty: '18 кв.м' },
+          { name: 'Клей Ceresit CM14', qty: '6 мешков' }
+        ]
+      }
+    ];
+
+    let currentTaskId = 'task-1';
+
+    function renderTaskList(filter = 'all') {
+      const container = document.getElementById('task-cards-container');
+      container.innerHTML = '';
+
+      const filtered = TASKS.filter(t => {
+        if (filter === 'all') return true;
+        if (filter === 'in_progress') return t.status === 'in_progress';
+        if (filter === 'overdue') return t.status === 'overdue';
+        if (filter === 'new') return t.status === 'new';
+        return true;
+      });
+
+      filtered.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'task-card';
+        card.onclick = () => openTaskDetail(t.id);
+        card.innerHTML = `
+          <div class="card-top">
+            <div>
+              <span class="dot-status" style="background:${t.statusColor}"></span>
+              <span style="font-size:10px; font-weight:bold; color:#94a3b8;">${t.number}</span>
+            </div>
+            <div>
+              <span class="badge-priority">${t.priority}</span>
+              <span class="badge-status" style="background:${t.statusColor}">${t.statusText}</span>
+            </div>
+          </div>
+          <div class="task-title">${t.title}</div>
+          <div class="task-address">📍 ${t.address}</div>
+          <div class="card-footer">
+            <span>📅 Сегодня, 10:00</span>
+            <span style="font-weight:bold; color:#168BEA;">Чек-лист: ${t.checklist.filter(c => c.done).length}/${t.checklist.length}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function filterTasks(type, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTaskList(type);
+    }
+
+    function openTaskDetail(id) {
+      currentTaskId = id;
+      const t = TASKS.find(x => x.id === id);
+      if (!t) return;
+
+      document.getElementById('detail-number').innerText = t.number;
+      document.getElementById('detail-header-title').innerText = t.title;
+      document.getElementById('detail-desc').innerText = t.desc;
+      document.getElementById('detail-work-type').innerText = t.workType;
+      document.getElementById('detail-priority').innerText = t.priority;
+      document.getElementById('detail-address').innerText = t.address;
+      document.getElementById('detail-customer-name').innerText = t.customer;
+      document.getElementById('detail-customer-phone').innerText = t.phone;
+      document.getElementById('detail-call-btn').href = 'tel:' + t.phone.replace(/[^0-9+]/g, '');
+
+      const statusPill = document.getElementById('detail-status-pill');
+      statusPill.innerText = t.statusText;
+      statusPill.style.background = t.statusColor;
+
+      const matContainer = document.getElementById('detail-materials-list');
+      matContainer.innerHTML = '';
+      t.materials.forEach(m => {
+        matContainer.innerHTML += `
+          <div style="display:flex; justify-content:space-between; background:#f8fafc; padding:8px 10px; border-radius:8px;">
+            <span>${m.name}</span>
+            <b style="color:#168BEA;">${m.qty}</b>
+          </div>
+        `;
+      });
+
+      renderChecklist(t);
+      showScreen('detail');
+    }
+
+    function renderChecklist(t) {
+      const container = document.getElementById('execution-checklist-container');
+      container.innerHTML = '';
+
+      const total = t.checklist.length;
+      const doneCount = t.checklist.filter(c => c.done).length;
+      const percent = Math.round((doneCount / total) * 100);
+
+      document.getElementById('checklist-counter').innerText = `${doneCount} из ${total} (${percent}%)`;
+      document.getElementById('checklist-prog-bar').style.width = percent + '%';
+
+      t.checklist.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'checklist-item ' + (item.done ? 'done' : '');
+        row.onclick = () => {
+          item.done = !item.done;
+          renderChecklist(t);
+        };
+        row.innerHTML = `
+          <div class="checklist-checkbox">${item.done ? '✓' : ''}</div>
+          <div style="font-size:12px; font-weight:600;">
+            ${idx + 1}. ${item.title} ${item.req ? '<span style="color:#ef4444;">*</span>' : ''}
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function proceedToCompletion() {
+      const t = TASKS.find(x => x.id === currentTaskId);
+      const missingRequired = t.checklist.filter(c => c.req && !c.done);
+      if (missingRequired.length > 0) {
+        alert('Внимание: отметьте все обязательные пункты чек-листа (осталось ' + missingRequired.length + ')!');
+        return;
+      }
+      showScreen('completion');
+      initCanvas();
+    }
+
+    function finishAndShowAct() {
+      showScreen('act');
+    }
+
+    function showScreen(screenId) {
+      ['list', 'detail', 'execution', 'completion', 'act'].forEach(s => {
+        document.getElementById('screen-' + s).style.display = (s === screenId ? 'flex' : 'none');
+      });
+    }
+
+    function openMapModal() {
+      document.getElementById('modal-map').style.display = 'flex';
+    }
+    function openPhotoModal() {
+      document.getElementById('modal-photos').style.display = 'flex';
+    }
+    function closeModal(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+
+    function autoFillAndComplete() {
+      const t = TASKS[0];
+      t.checklist.forEach(c => c.done = true);
+      openTaskDetail(t.id);
+      showScreen('completion');
+      initCanvas();
+      drawDemoSignature();
+    }
+
+    // Canvas drawing
+    let isDrawing = false;
+    let canvas, ctx;
+
+    function initCanvas() {
+      canvas = document.getElementById('sig-canvas');
+      if (!canvas) return;
+      ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#168BEA';
+
+      canvas.onmousedown = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
+      canvas.onmousemove = (e) => { if (isDrawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } };
+      window.onmouseup = () => { isDrawing = false; };
+
+      canvas.ontouchstart = (e) => {
+        e.preventDefault();
+        const r = canvas.getBoundingClientRect();
+        isDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+      };
+      canvas.ontouchmove = (e) => {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const r = canvas.getBoundingClientRect();
+        ctx.lineTo(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+        ctx.stroke();
+      };
+      canvas.ontouchend = () => { isDrawing = false; };
+    }
+
+    function clearSignature() {
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    function drawDemoSignature() {
+      if (!ctx || !canvas) return;
+      ctx.beginPath();
+      ctx.moveTo(30, 70);
+      ctx.quadraticCurveTo(80, 20, 140, 60);
+      ctx.quadraticCurveTo(200, 90, 260, 40);
+      ctx.stroke();
+    }
+
+    // Initialize
+    renderTaskList('all');
+
+    // Update real time clock
+    setInterval(() => {
+      const d = new Date();
+      document.getElementById('clock-time').innerText = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+    }, 1000);
+  </script>
+</body>
+</html>
