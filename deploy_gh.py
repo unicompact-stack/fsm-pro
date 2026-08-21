@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Загрузка dist/ в GitHub Pages репозиторий через Contents API и включение Pages."""
+"""Загрузка dist/ в корень main (GitHub Pages) через Contents API.
+
+Структура репозитория (после рефакторинга 2026-08-21):
+  app/   — исходники проекта (vite root). Корень репо НИКОГДА не трогаем исходниками.
+  dist/  — результат сборки (npm --prefix app run build)
+  корень — собранный сайт (index.html, assets/, ...) — именно его отдаёт Pages.
+
+Раньше файлы заливались в корень ВМЕСТЕ с исходниками в корне, и деплой
+затирал исходный index.html — vite потом собирал старый задеплоенный сайт.
+Теперь исходники в app/, так что заливка в корень безопасна.
+
+Чистка: из корня удаляются только старые файлы САЙТА (assets/*, иконки и т.п.),
+которых нет в новой сборке. Документы и app/ не трогаются.
+"""
 import base64
 import json
 import os
@@ -9,8 +22,13 @@ import urllib.error
 
 OWNER = 'unicompact-stack'
 REPO = 'fsm-pro'
-BRANCH = 'main'
+BRANCH = 'main'             # Pages настроен на main/(корень) — переключение API недоступно
 DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist')
+
+# Файлы сайта в корне (всё, что заливает деплой)
+SITE_PATHS = {
+    'index.html', 'sw.js', 'manifest.json', 'favicon.svg', 'icons.svg',
+}
 
 
 def load_token():
@@ -56,8 +74,7 @@ def list_files(root):
 
 def upload_file(token, rel_path, full_path):
     url = f'https://api.github.com/repos/{OWNER}/{REPO}/contents/{rel_path}'
-    # Проверить, существует ли файл, чтобы получить sha
-    status, data = api('GET', url, token)
+    status, data = api('GET', f'{url}?ref={BRANCH}', token)
     sha = data.get('sha') if status == 200 else None
     with open(full_path, 'rb') as f:
         content_b64 = base64.b64encode(f.read()).decode('ascii')
@@ -75,21 +92,34 @@ def upload_file(token, rel_path, full_path):
     return False
 
 
-def enable_pages(token):
-    url = f'https://api.github.com/repos/{OWNER}/{REPO}/pages'
-    payload = {'source': {'branch': BRANCH, 'path': '/'}}
-    status, data = api('POST', url, token, payload)
-    if status in (200, 201, 409):
-        print(f'Pages enabled: {status} {data.get("html_url", "")}')
-        return True
-    print(f'FAIL pages: {status} {data}')
-    return False
+def is_site_file(path):
+    return path in SITE_PATHS or path.startswith('assets/') or path.startswith('icons/')
+
+
+def clean_stale_site_files(token, keep):
+    """Удалить старые файлы сайта (assets/, icons/, иконки), которых нет в новой сборке."""
+    status, data = api('GET', f'https://api.github.com/repos/{OWNER}/{REPO}/git/trees/{BRANCH}?recursive=1', token)
+    if status != 200:
+        print(f'WARN tree: {status}')
+        return
+    for item in data.get('tree', []):
+        if item['type'] != 'blob':
+            continue
+        path = item['path']
+        if path in keep or not is_site_file(path):
+            continue
+        status2, data2 = api('GET', f'https://api.github.com/repos/{OWNER}/{REPO}/contents/{path}?ref={BRANCH}', token)
+        sha = data2.get('sha') if status2 == 200 else None
+        if sha:
+            s, _ = api('DELETE', f'https://api.github.com/repos/{OWNER}/{REPO}/contents/{path}', token,
+                       {'message': f'Remove stale {path}', 'sha': sha, 'branch': BRANCH})
+            if s in (200, 202):
+                print(f'  удалён старый {path}')
 
 
 def main():
     token = load_token()
 
-    # Проверяем токен
     status, data = api('GET', 'https://api.github.com/user', token)
     if status != 200:
         print(f'FAIL user check: {status} {data}')
@@ -97,19 +127,19 @@ def main():
     print(f'OK user: {data.get("login")}')
 
     files = list_files(DIST)
-    print(f'Uploading {len(files)} files to {OWNER}/{REPO}...')
+    if not files:
+        print('FAIL: dist/ пуст — сначала выполните: npm --prefix app run build')
+        sys.exit(1)
+    print(f'Uploading {len(files)} files to {OWNER}/{REPO} [{BRANCH}] (root)...')
     ok = True
     for rel, full in files:
-        rel = rel.replace('\\', '/')
         print(f'  {rel}')
         ok &= upload_file(token, rel, full)
-
     if not ok:
         print('Upload finished with errors')
         sys.exit(1)
 
-    print('All files uploaded. Enabling GitHub Pages...')
-    enable_pages(token)
+    clean_stale_site_files(token, {rel for rel, _ in files})
     print(f'DONE: https://{OWNER}.github.io/{REPO}/')
 
 

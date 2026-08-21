@@ -12,11 +12,17 @@ const buildId = (() => {
 })()
 
 // https://vite.dev/config/
+// Запуск из папки app/ (npm --prefix app run dev|build): исходники здесь,
+// а корень репозитория — место для собранного сайта (GitHub Pages).
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   define: {
     __APP_BUILD__: JSON.stringify(buildId),
+  },
+  build: {
+    outDir: '../dist',            // собираем в dist/ в корне репо
+    emptyOutDir: true,
   },
   server: {
     host: '0.0.0.0',
