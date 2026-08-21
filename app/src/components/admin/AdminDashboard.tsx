@@ -5,7 +5,7 @@ import { STATUS_CONFIG, PRIORITY_CONFIG, formatDate, formatTime } from '../../ut
 import { PdfActModal } from '../shared/PdfActModal';
 import { Avatar } from '../shared/Avatar';
 import { getAccessCodes, saveAccessCodes, resetAccessCodes, AccessCodes } from '../../auth';
-import { Plus, Search, MapPin, FileText, Download, Camera, X, ShieldCheck, Send, MessageSquare, UserPlus, Users, KeyRound } from 'lucide-react';
+import { Plus, Search, MapPin, FileText, Download, Camera, X, ShieldCheck, Send, MessageSquare, UserPlus, Users, KeyRound, MapPinned, Ban, Trash2, RotateCcw } from 'lucide-react';
 
 type SectionTab = 'overview' | 'tasks' | 'teams' | 'review';
 
@@ -26,6 +26,7 @@ export const AdminDashboard: React.FC = () => {
     tasks, users, createNewTask, reviewTaskReport, showToast,
     chatMessages, sendChatMessage, currentUser, presence,
     notificationsCount, clearNotifications, addUser,
+    blockUser, deleteUser, fireEveryone,
   } = useApp();
 
   const [section, setSection] = useState<SectionTab>('overview');
@@ -53,6 +54,40 @@ export const AdminDashboard: React.FC = () => {
   // Возврат на доработку: показ причин-кнопок
   const [showReturnReasons, setShowReturnReasons] = useState(false);
   const [customReturnReason, setCustomReturnReason] = useState('');
+
+  // Управление сотрудниками: подтверждения увольнения
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
+  const [confirmFireAll, setConfirmFireAll] = useState(false);
+
+  // Тип работ при создании задачи: универсальный список + свои варианты
+  const WORK_TYPES = [
+    'Доставка груза',
+    'Логистика / перевозка',
+    'Помощь и уход',
+    'Уборка / клининг',
+    'Ремонт',
+    'Электромонтаж',
+    'Сантехника',
+    'Замена окон',
+    'Укладка плитки',
+    'Укладка ламината',
+    'Монтаж сплит-системы',
+  ];
+  const [customWorkTypes, setCustomWorkTypes] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fsm_custom_worktypes') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [useCustomType, setUseCustomType] = useState(false);
+  const [customTypeText, setCustomTypeText] = useState('');
+
+  // Ссылка на Яндекс.Карты по геометке сотрудника
+  const yandexMapsUrl = (lat?: number, lng?: number) =>
+    lat !== undefined && lng !== undefined
+      ? `https://yandex.ru/maps/?pt=${lng},${lat}&z=16&l=map`
+      : null;
 
   // Модалка создания задачи (полноценная форма)
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -244,9 +279,25 @@ export const AdminDashboard: React.FC = () => {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Итоговый тип работы: из списка или свой (свой запоминаем на будущее)
+    let finalTitle = newTitle;
+    if (useCustomType) {
+      finalTitle = customTypeText.trim();
+      if (!finalTitle) {
+        showToast('Впишите название работы или выберите из списка');
+        return;
+      }
+      if (!WORK_TYPES.includes(finalTitle) && !customWorkTypes.includes(finalTitle)) {
+        const updated = [...customWorkTypes, finalTitle];
+        setCustomWorkTypes(updated);
+        localStorage.setItem('fsm_custom_worktypes', JSON.stringify(updated));
+      }
+    }
+
     createNewTask({
-      title: newTitle,
-      workType: newWorkType,
+      title: finalTitle,
+      workType: finalTitle,
       description: newDescription,
       priority: newPriority,
       assignedUserId: newAssignedUser,
@@ -318,7 +369,7 @@ export const AdminDashboard: React.FC = () => {
         {/* Навигация: 4 пилюли */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 mb-4 rounded-[22px] bg-white/90 border border-[#E2E8F0] shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
           <div className="flex gap-2 flex-wrap">
-            {([['overview', 'Главная'], ['tasks', 'Задачи'], ['teams', 'Бригады'], ['review', 'Проверка']] as [SectionTab, string][]).map(([k, l]) => (
+            {([['overview', 'Главная'], ['tasks', 'Задачи'], ['teams', 'Сотрудники'], ['review', 'Проверка']] as [SectionTab, string][]).map(([k, l]) => (
               <button key={k} onClick={() => setSection(k)}
                 className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${section === k ? 'bg-[#168BEA] text-white border-[#168BEA] shadow-md'
                   : 'border border-[#CFE3F8] bg-gradient-to-b from-white to-[#E8F3FE] text-[#168BEA] hover:shadow-md'}`}>{l}
@@ -441,31 +492,62 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* БРИГАДЫ */}
+            {/* СОТРУДНИКИ */}
             {section === 'teams' && (
               <div className={CARD}>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <div>
-                    <div className="uppercase text-[11px] tracking-wider font-extrabold text-[#94A3B8] mb-1">Бригады</div>
-                    <h3 className="text-xl font-black text-[#263238]">Активные бригады и специалисты</h3>
+                    <div className="uppercase text-[11px] tracking-wider font-extrabold text-[#94A3B8] mb-1">Сотрудники</div>
+                    <h3 className="text-xl font-black text-[#263238]">Мастера и выездные работники</h3>
                   </div>
-                  <button onClick={() => setShowAddUser(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#168BEA] text-white text-xs font-bold hover:bg-[#1277c9] transition-all">
-                    <UserPlus className="w-3.5 h-3.5" /> Добавить сотрудника
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {confirmFireAll ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-rose-700">Уволить всех и очистить коды?</span>
+                        <button onClick={() => { fireEveryone(); setConfirmFireAll(false); }}
+                          className="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700">Да, уволить</button>
+                        <button onClick={() => setConfirmFireAll(false)}
+                          className="px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold">Нет</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmFireAll(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#F7B7B7] bg-[#FFF6F6] text-[#EF4444] text-xs font-bold hover:shadow-md transition-all">
+                        <Trash2 className="w-3.5 h-3.5" /> Уволить всех
+                      </button>
+                    )}
+                    <button onClick={() => setShowAddUser(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#168BEA] text-white text-xs font-bold hover:bg-[#1277c9] transition-all">
+                      <UserPlus className="w-3.5 h-3.5" /> Добавить сотрудника
+                    </button>
+                  </div>
                 </div>
+
                 <div className="mt-2 space-y-2.5">
-                  {users.filter(u => u.role === 'technician' && (showOffline || (presence[u.id] ?? 'online') === 'online')).map(tech => {
+                  {users.filter(u => u.role === 'technician').length === 0 && (
+                    <div className="text-center py-10 px-4 bg-[#F8FAFC] rounded-2xl border border-dashed border-[#E2E8F0]">
+                      <Users className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
+                      <p className="text-xs text-[#7D8790]">Сотрудников нет — чистый лист. Добавьте первого мастера.</p>
+                    </div>
+                  )}
+                  {users.filter(u => u.role === 'technician').map(tech => {
                     const assigned = tasks.filter(t => t.assignedUserId === tech.id).length;
                     const active = tasks.filter(t => t.assignedUserId === tech.id && t.status === 'in_progress').length;
                     const online = (presence[tech.id] ?? 'online') === 'online';
                     const personalCode = codes.personal[tech.id];
+                    const mapsUrl = yandexMapsUrl(tech.currentLocation?.lat, tech.currentLocation?.lng);
+                    const geoTime = tech.currentLocation?.updatedAt
+                      ? hm(tech.currentLocation.updatedAt)
+                      : null;
+                    const isBlocked = !!tech.isBlocked;
                     return (
-                      <div key={tech.id} className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                        <div className="flex items-center gap-3">
-                          <Avatar user={tech} size={40} className="rounded-xl border border-[#E2E8F0]" />
+                      <div key={tech.id} className={`p-3.5 rounded-2xl border ${isBlocked ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-[#F8FAFC] border-[#E2E8F0]'}`}>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Avatar user={tech} size={40} className={`rounded-xl border ${isBlocked ? 'grayscale border-slate-300' : 'border-[#E2E8F0]'}`} />
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-[#263238] truncate">{tech.fullName}</div>
+                            <div className="font-bold text-sm text-[#263238] truncate">
+                              {tech.fullName}
+                              {isBlocked && <span className="ml-2 text-[10px] font-bold text-slate-500 bg-slate-200 rounded-full px-2 py-0.5">заблокирован</span>}
+                            </div>
                             <div className="text-[11px] text-[#7D8790]">{tech.specializations.join(', ')}</div>
                           </div>
                           {personalCode && (
@@ -473,35 +555,56 @@ export const AdminDashboard: React.FC = () => {
                               <KeyRound className="w-3 h-3" /> код {personalCode}
                             </span>
                           )}
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold ${
-                            online ? 'bg-[#ECFDF5] text-[#2CCB70]' : 'bg-slate-200 text-slate-500'
-                          }`}>
-                            <span className={`w-2 h-2 rounded-full ${online ? 'bg-[#2CCB70]' : 'bg-slate-400'}`} />
-                            {online ? 'онлайн' : 'офлайн'}
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold ${online && !isBlocked ? 'bg-[#ECFDF5] text-[#2CCB70]' : 'bg-slate-200 text-slate-500'}`}>
+                            <span className={`w-2 h-2 rounded-full ${online && !isBlocked ? 'bg-[#2CCB70]' : 'bg-slate-400'}`} />
+                            {isBlocked ? 'нет доступа' : online ? 'онлайн' : 'офлайн'}
                           </span>
                         </div>
-                        <div className="mt-2 text-[11px] text-[#7D8790]">Сейчас задач: <b className="text-[#263238]">{assigned}</b>{active > 0 && <> · В работе: <b className="text-[#168BEA]">{active}</b></>} · {tech.phone}</div>
+
+                        <div className="mt-2 text-[11px] text-[#7D8790]">
+                          Сейчас задач: <b className="text-[#263238]">{assigned}</b>
+                          {active > 0 && <> · В работе: <b className="text-[#168BEA]">{active}</b></>}
+                          {' · '}
+                          <a href={`tel:${tech.phone}`} className="text-[#168BEA] font-bold">{tech.phone}</a>
+                        </div>
+
+                        {/* Действия: найти на карте, блокировка, увольнение */}
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                          {mapsUrl ? (
+                            <a href={mapsUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2CCB70]/10 border border-[#C8F3DA] text-[#1B8D4C] text-[11px] font-bold hover:bg-[#2CCB70]/20 transition-all">
+                              <MapPinned className="w-3.5 h-3.5" /> Найти на Яндекс.Картах{geoTime ? ` · метка ${geoTime}` : ''}
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-400 text-[11px] font-bold">
+                              <MapPinned className="w-3.5 h-3.5" /> Нет геометки (появится после действий мастера)
+                            </span>
+                          )}
+
+                          <button onClick={() => blockUser(tech.id, !isBlocked)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${isBlocked
+                              ? 'bg-[#ECFDF5] border border-[#C8F3DA] text-[#2CCB70] hover:bg-emerald-100'
+                              : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100'}`}>
+                            {isBlocked ? <><RotateCcw className="w-3.5 h-3.5" /> Разблокировать</> : <><Ban className="w-3.5 h-3.5" /> Заблокировать</>}
+                          </button>
+
+                          {confirmDeleteUser === tech.id ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <button onClick={() => { deleteUser(tech.id); setConfirmDeleteUser(null); }}
+                                className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-[11px] font-bold hover:bg-rose-700">Уволить</button>
+                              <button onClick={() => setConfirmDeleteUser(null)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] font-bold">Отмена</button>
+                            </span>
+                          ) : (
+                            <button onClick={() => setConfirmDeleteUser(tech.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-[#F7B7B7] text-[#EF4444] text-[11px] font-bold hover:bg-rose-100 transition-all">
+                              <Trash2 className="w-3.5 h-3.5" /> Уволить
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
-                </div>
-                <div className="mt-4 p-4 rounded-2xl overflow-hidden relative border border-[#E2E8F0] bg-[#F8FAFC] min-h-[200px]">
-                  <div className="absolute inset-0 opacity-40">
-                    <svg className="w-full h-full" viewBox="0 0 800 300" preserveAspectRatio="none">
-                      <path d="M50,150 Q250,60 450,160 T780,90" stroke="#94A3B8" strokeWidth="14" fill="none" strokeDasharray="4 8" />
-                      <path d="M100,60 Q350,220 700,200" stroke="#94A3B8" strokeWidth="18" fill="none" strokeDasharray="4 8" />
-                    </svg>
-                  </div>
-                  {users.filter(u => u.role === 'technician' && (showOffline || (presence[u.id] ?? 'online') === 'online')).map((tech, i) => (
-                    <div key={tech.id} className="absolute cursor-pointer hover:scale-110 transition-transform"
-                      style={{ left: `${12 + (i * 28) % 70}%`, top: `${22 + (i * 24) % 55}%` }}>
-                      <div className="flex flex-col items-center">
-                        <div className="p-1.5 rounded-full bg-white shadow-lg border-2 border-[#168BEA]"><Avatar user={tech} size={28} /></div>
-                        <span className="mt-1 text-[9px] bg-slate-900 text-white px-1.5 py-0.5 rounded-full font-bold">{tech.fullName.split(' ')[0]}</span>
-                      </div>
-                    </div>
-                  ))}
-                  <span className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-white/90 text-[10px] font-bold text-[#7D8790] border">🌐 Карта местоположения бригад</span>
                 </div>
               </div>
             )}
@@ -641,19 +744,36 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <form onSubmit={handleCreateSubmit} className="space-y-3 text-xs">
               <div className="space-y-1">
-                <label className="font-bold text-slate-700 block">Тип / Наименование работы:</label>
-                <select value={newTitle} onChange={e => { setNewTitle(e.target.value);
-                  if (e.target.value === 'Замена окон') setNewWorkType('Остекление и окна');
-                  if (e.target.value === 'Прокладка электрического кабеля') setNewWorkType('Электромонтажные работы');
-                  if (e.target.value === 'Укладка плитки') setNewWorkType('Плиточные работы');
-                  if (e.target.value === 'Укладка ламината') setNewWorkType('Напольные покрытия');
-                }} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                  <option value="Замена окон">Замена окон</option>
-                  <option value="Прокладка электрического кабеля">Прокладка электрического кабеля</option>
-                  <option value="Укладка плитки">Укладка плитки</option>
-                  <option value="Укладка ламината">Укладка ламината</option>
-                  <option value="Монтаж сплит-системы">Монтаж сплит-системы</option>
+                <label className="font-bold text-slate-700 block">Тип / наименование работы:</label>
+                <select
+                  value={useCustomType ? '__custom__' : newTitle}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      setUseCustomType(true);
+                      setCustomTypeText('');
+                    } else {
+                      setUseCustomType(false);
+                      setNewTitle(e.target.value);
+                      setNewWorkType(e.target.value);
+                    }
+                  }}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                >
+                  {WORK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {customWorkTypes.map(t => <option key={t} value={t}>{t} (своё)</option>)}
+                  <option value="__custom__">Своё… (вписать)</option>
                 </select>
+                {useCustomType && (
+                  <input
+                    type="text"
+                    value={customTypeText}
+                    onChange={e => setCustomTypeText(e.target.value)}
+                    placeholder="Например: Встретить и сопроводить..."
+                    autoFocus
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  />
+                )}
+                <div className="text-[10px] text-slate-400">Свой вариант запомнится в списке для будущих задач.</div>
               </div>
               <div className="space-y-1">
                 <label className="font-bold text-slate-700 block">Описание задачи для мастера:</label>
@@ -687,7 +807,7 @@ export const AdminDashboard: React.FC = () => {
                   <label className="font-bold text-slate-700 block">Назначить специалиста:</label>
                   <select value={newAssignedUser} onChange={e => setNewAssignedUser(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
                     <option value="">Без назначения</option>
-                    {users.filter(u => u.role === 'technician').map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
+                    {users.filter(u => u.role === 'technician' && !u.isBlocked).map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
                   </select>
                 </div>
               </div>

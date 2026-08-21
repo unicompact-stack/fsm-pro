@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Task, User, TaskStatus, ChecklistItem, TaskPhoto, TaskMaterial, OfflineAction, UserRole, PhotoCategory, ChatMessage } from '../types';
 import { INITIAL_TASKS, INITIAL_USERS, CHECKLIST_TEMPLATES } from '../data/mockData';
 import { db, isIndexedDBAvailable } from '../db';
 import { getLocationSnapshot, initGeoTracking, getCurrentPosition } from '../utils/geo';
-import { AuthMode, persistAuthMode, readPersistedAuthMode } from '../auth';
+import { AuthMode, persistAuthMode, readPersistedAuthMode, getAccessCodes, saveAccessCodes } from '../auth';
 import {
   loadTasks, createTask as createSupabaseTask, updateTask as updateSupabaseTask,
   loadChatMessages, sendChatMessageToSupabase,
@@ -28,6 +28,10 @@ interface AppContextType {
   // Пользователи: создание/редактирование из админ-панели
   addUser: (data: { fullName: string; phone: string; specializations: string[]; role?: UserRole }) => User;
   deactivateUser: (userId: string) => void;
+  // Блокировка («заморожен» — по коду не пускает), удаление («уволен»), полный сброс персонала
+  blockUser: (userId: string, blocked: boolean) => void;
+  deleteUser: (userId: string) => void;
+  fireEveryone: () => void;
   activeTaskId: string | null;
   setActiveTaskId: (id: string | null) => void;
   activeTask: Task | null;
@@ -138,13 +142,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_USERS;
   });
 
-  // Сохраняем пользователей при изменении
+  // Сохраняем пользователей при изменении (+ рассылка в другие вкладки)
   useEffect(() => {
+    if (usersRemote.current) {
+      usersRemote.current = false;
+      return;
+    }
     try {
       localStorage.setItem('fsm_users', JSON.stringify(users));
     } catch {
       // ignore
     }
+    syncChannel.current?.postMessage({ type: 'users', users });
   }, [users]);
 
   // Создание пользователя из админ-панели (мастер с личным кодом входа)
@@ -168,6 +177,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deactivateUser = (userId: string) => {
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isActive: false } : u)));
     showToast('Сотрудник деактивирован');
+  };
+
+  // Блокировка: человек остаётся в списке, но по коду его не пускает
+  const blockUser = (userId: string, blocked: boolean) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isBlocked: blocked } : u)));
+    showToast(blocked ? 'Сотрудник заблокирован — вход по его коду закрыт' : 'Сотрудник разблокирован');
+  };
+
+  // Удаление («уволен»): убираем из списка, удаляем его личный код, снимаем с задач
+  const deleteUser = (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.assignedUserId === userId
+          ? { ...t, assignedUserId: '', assignedUser: undefined, status: t.status === 'assigned' ? 'new' : t.status }
+          : t
+      )
+    );
+    // Удаляем личный код уволенного
+    const codes = getAccessCodes();
+    const personal = { ...codes.personal };
+    delete personal[userId];
+    saveAccessCodes({ ...codes, personal });
+
+    showToast(target ? `«${target.fullName}» уволен — задачи освобождены` : 'Сотрудник удалён');
+  };
+
+  // «Уволить всех»: остаётся только руководство, задачи освобождаются, коды мастеров стираются
+  const fireEveryone = () => {
+    setUsers((prev) => prev.filter((u) => u.role !== 'technician'));
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.assignedUserId
+          ? { ...t, assignedUserId: '', assignedUser: undefined, status: t.status === 'assigned' ? 'new' : t.status }
+          : t
+      )
+    );
+    const codes = getAccessCodes();
+    saveAccessCodes({ ...codes, personal: {} });
+    showToast('Все сотрудники уволены — чистый лист');
   };
 
 
@@ -342,10 +392,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [chatMessages]);
 
   // Синхронизация ТОЛЬКО в IndexedDB (localStorage не используем — данные сбрасываются при обновлении)
+  // Плюс рассылка в другие вкладки того же браузера (проверка «диспетчер + мастер» в двух окнах)
+  const syncChannel = useRef<BroadcastChannel | null>(null);
+  const tasksRemote = useRef(false);
+  const usersRemote = useRef(false);
+
   useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const ch = new BroadcastChannel('fsm-sync');
+    syncChannel.current = ch;
+    ch.onmessage = (ev) => {
+      const msg = ev.data;
+      if (msg?.type === 'tasks') {
+        tasksRemote.current = true;
+        setTasks(msg.tasks);
+      } else if (msg?.type === 'users') {
+        usersRemote.current = true;
+        setUsers(msg.users);
+      }
+    };
+    return () => ch.close();
+  }, []);
+
+  useEffect(() => {
+    if (tasksRemote.current) {
+      tasksRemote.current = false;
+      return;
+    }
     if (isIndexedDBAvailable()) {
       db.saveTasks(tasks).catch(() => {});
     }
+    syncChannel.current?.postMessage({ type: 'tasks', tasks });
   }, [tasks]);
 
   useEffect(() => {
@@ -476,6 +553,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Синхронизация с Supabase
     updateSupabaseTask(taskId, { status: newStatus });
+
+    // Гео-метка мастера обновляется при каждом действии (для «Найти на Яндекс.Картах»)
+    const snap = getLocationSnapshot();
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === currentUser.id
+          ? { ...u, currentLocation: { lat: snap.lat, lng: snap.lng, updatedAt: timestamp } }
+          : u
+      )
+    );
   };
 
   const toggleChecklistItem = (taskId: string, itemId: string) => {
@@ -881,7 +968,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateSupabaseTask(taskId, { assigned_to: currentUser.id, status: 'assigned' });
   };
 
-  // «Я на объекте»: фиксируем время прибытия и GPS-координаты одной кнопкой
+  // «Я на объекте»: фиксируем время прибытия и GPS-координаты одной кнопкой.
+  // Заодно обновляем гео-метку мастера — руководитель найдёт его на Яндекс.Картах.
   const recordArrival = async (taskId: string) => {
     const loc = await getCurrentPosition();
     const now = new Date().toISOString();
@@ -890,6 +978,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         t.id === taskId
           ? { ...t, arrivalAt: now, arrivalLocation: loc, updatedAt: now }
           : t
+      )
+    );
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === currentUser.id
+          ? { ...u, currentLocation: { lat: loc.lat, lng: loc.lng, updatedAt: now } }
+          : u
       )
     );
     const time = new Date(now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -1033,6 +1128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser,
     addUser,
     deactivateUser,
+    blockUser,
+    deleteUser,
+    fireEveryone,
         activeTaskId,
         setActiveTaskId,
         activeTask,

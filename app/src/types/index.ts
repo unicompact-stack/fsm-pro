@@ -19,6 +19,8 @@ export interface User {
   specializations: string[];
   isActive: boolean;
   status: 'available' | 'busy' | 'offline';
+  // Заблокирован руководителем: по коду не пустит («уволен» / «заморожен»)
+  isBlocked?: boolean;
   currentLocation?: {
     lat: number;
     lng: number;

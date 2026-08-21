@@ -20,7 +20,7 @@ import {
 
 // ============ ЭКРАН ВХОДА ============
 const LoginScreen: React.FC = () => {
-  const { login, enterDemo } = useApp();
+  const { login, enterDemo, users } = useApp();
   const [loginCode, setLoginCode] = useState('');
   const [loginError, setLoginError] = useState('');
 
@@ -29,6 +29,15 @@ const LoginScreen: React.FC = () => {
     if (resolved === null) {
       setLoginError('Неверный код. Проверьте и попробуйте снова.');
       return;
+    }
+    // Заблокированный (уволенный) мастер по коду не входит
+    if (resolved === 'worker') {
+      const uid = resolveUserCode(loginCode);
+      const target = uid ? users.find((u) => u.id === uid) : null;
+      if (target?.isBlocked) {
+        setLoginError('Доступ закрыт. Обратитесь к руководителю.');
+        return;
+      }
     }
     setLoginError('');
     // Личный код мастера → панель именно этого мастера
@@ -195,10 +204,10 @@ const ManagerView: React.FC = () => {
 const TrainingModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { logout } = useApp();
   const steps = [
-    'Открой задачу из списка «Мои задачи»',
-    'Нажми «Начать работу»',
-    'Сделай фото и добавь комментарий',
-    'Отправь результат на проверку',
+    'Открой вкладку «Все задачи» — свободные задачи подсвечены зелёным',
+    'Нажми «Взяться за задачу», затем «Начать работу»',
+    'Отметь чек-лист и добавь фото (камера или галерея)',
+    'Отправь результат на проверку руководителю',
   ];
 
   return (
