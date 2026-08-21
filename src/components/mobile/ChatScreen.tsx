@@ -1,19 +1,45 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Send, MessageSquare } from 'lucide-react';
+import { Avatar } from '../shared/Avatar';
+import { Send, MessageSquare, Users, User } from 'lucide-react';
+import { User as UserType } from '../../types';
 
 /**
- * ChatScreen — чат работника с руководителем.
- * Показывает все сообщения и позволяет ответить.
+ * ChatScreen — чат работника.
+ * Два режима: «Общий чат» (все) и «Лично» (1:1 с диспетчером).
  */
+
+type ChatMode = 'common' | 'personal';
+
 export const ChatScreen: React.FC = () => {
-  const { chatMessages, sendChatMessage, currentUser, clearNotifications } = useApp();
+  const { chatMessages, sendChatMessage, currentUser, users, clearNotifications } = useApp();
   const [input, setInput] = useState('');
+  const [mode, setMode] = useState<ChatMode>('common');
   const boxRef = useRef<HTMLDivElement>(null);
+
+  // Личный собеседник мастера — диспетчер
+  const counterpart: UserType | undefined = useMemo(
+    () => users.find((u) => u.role === 'dispatcher') || users.find((u) => u.role === 'admin'),
+    [users],
+  );
+
+  const visibleMessages = useMemo(() => {
+    if (mode === 'common') return chatMessages.filter((m) => !m.recipientId);
+    // Личные: переписка между мной и собеседником в обе стороны
+    return chatMessages.filter((m) => {
+      if (!m.recipientId) return false;
+      const me = currentUser.id;
+      const other = counterpart?.id;
+      return (
+        (m.senderId === me && m.recipientId === other) ||
+        (m.senderId === other && m.recipientId === me)
+      );
+    });
+  }, [chatMessages, mode, currentUser.id, counterpart]);
 
   useEffect(() => {
     if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [chatMessages]);
+  }, [visibleMessages]);
 
   useEffect(() => {
     clearNotifications();
@@ -23,7 +49,7 @@ export const ChatScreen: React.FC = () => {
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
-    sendChatMessage(text);
+    sendChatMessage(text, undefined, mode === 'personal' ? counterpart?.id : undefined);
     setInput('');
   };
 
@@ -39,22 +65,49 @@ export const ChatScreen: React.FC = () => {
     <div className="h-full flex flex-col bg-[#F4F7FA]">
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-lg font-black text-slate-900">Чат</h1>
-        <p className="text-xs text-slate-500 mt-1">Связь с руководителем</p>
+
+        {/* Переключатель режима чата */}
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setMode('common')}
+            className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              mode === 'common'
+                ? 'bg-[#168BEA] text-white shadow-md shadow-blue-500/20'
+                : 'bg-white text-slate-500 border border-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Общий чат
+          </button>
+          <button
+            onClick={() => setMode('personal')}
+            className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              mode === 'personal'
+                ? 'bg-[#168BEA] text-white shadow-md shadow-blue-500/20'
+                : 'bg-white text-slate-500 border border-slate-200'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            Лично · {counterpart ? counterpart.fullName.split(' ')[0] : 'диспетчер'}
+          </button>
+        </div>
       </div>
 
       <div ref={boxRef} className="flex-1 overflow-y-auto px-4 pb-3 space-y-2.5">
-        {chatMessages.length === 0 && (
+        {visibleMessages.length === 0 && (
           <div className="text-center py-12 text-slate-400 text-sm">
-            Сообщений пока нет
+            {mode === 'common' ? 'Сообщений пока нет' : 'Личных сообщений пока нет — напишите первым'}
           </div>
         )}
-        {chatMessages.map((msg) => {
+        {visibleMessages.map((msg) => {
           const isMe = msg.senderId === currentUser.id;
           const isManager = msg.senderRole === 'dispatcher' || msg.senderRole === 'admin';
+          const sender = users.find((u) => u.id === msg.senderId);
           return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+              {!isMe && sender && <Avatar user={sender} size={28} />}
               <div
-                className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl ${
+                className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl ${
                   isMe
                     ? 'bg-[#168BEA] text-white rounded-br-md'
                     : isManager
@@ -79,7 +132,7 @@ export const ChatScreen: React.FC = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-          placeholder="Написать руководителю..."
+          placeholder={mode === 'common' ? 'Написать в общий чат...' : 'Личное сообщение диспетчеру...'}
           className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-[#168BEA]"
         />
         <button
@@ -92,7 +145,10 @@ export const ChatScreen: React.FC = () => {
 
       <div className="px-4 pb-1 text-center">
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
-          <MessageSquare className="w-3 h-3" /> Сообщения видны и руководителю в его панели
+          <MessageSquare className="w-3 h-3" />
+          {mode === 'common'
+            ? 'Общий чат виден всем — и руководителю, и бригаде'
+            : 'Личные сообщения видят только вы и диспетчер'}
         </span>
       </div>
     </div>

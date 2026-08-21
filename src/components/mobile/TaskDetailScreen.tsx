@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Task } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { ArrowLeft, MapPin, Phone, User, FileText, MessageSquare, Camera, ListChecks, CheckCircle2, PlayCircle, Clock } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, User, FileText, MessageSquare, Camera, ListChecks, CheckCircle2, PlayCircle, Clock, Navigation, AlertTriangle } from 'lucide-react';
 
 interface Props {
   task: Task;
@@ -20,7 +20,8 @@ const fmtDateTime = (iso?: string) => {
 };
 
 export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork }) => {
-  const { updateTaskStatus, showToast } = useApp();
+  const { updateTaskStatus, showToast, recordArrival } = useApp();
+  const [isFixingLocation, setIsFixingLocation] = useState(false);
 
   // «Начать работу» — фиксируем дату и время старта (статус «В работе»).
   const handleStartWork = () => {
@@ -29,6 +30,13 @@ export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork })
       showToast('Зафиксировано время начала работы');
     }
     onStartWork();
+  };
+
+  // «Я на объекте» — одной кнопкой фиксируем GPS и время прибытия
+  const handleArrival = async () => {
+    setIsFixingLocation(true);
+    await recordArrival(task.id);
+    setIsFixingLocation(false);
   };
 
   return (
@@ -44,12 +52,42 @@ export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork })
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        {/* Баннер «на доработке» — мастер сразу видит, что вернул диспетчер */}
+        {task.needsRework && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <span className="text-sm font-black text-red-700">Вернуто на доработку</span>
+            </div>
+            <div className="text-sm text-red-800 leading-relaxed">
+              {task.reworkComment || 'Доработайте отчёт и отправьте повторно'}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl p-4 border border-slate-100">
           <div className="flex items-center gap-2 mb-2">
             <MapPin className="w-4 h-4 text-[#168BEA]" />
             <span className="text-xs font-bold text-slate-500">Адрес</span>
           </div>
           <div className="text-sm text-slate-900">{task.address.full}</div>
+
+          {/* Кнопка «Я на объекте»: GPS + время одной кнопкой, без ввода текста */}
+          {!task.arrivalAt ? (
+            <button
+              onClick={handleArrival}
+              disabled={isFixingLocation}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#168BEA]/10 text-[#168BEA] text-sm font-bold active:scale-[0.98] transition-transform disabled:opacity-60"
+            >
+              <Navigation className="w-4 h-4" />
+              {isFixingLocation ? 'Определяю местоположение...' : 'Я на объекте — зафиксировать'}
+            </button>
+          ) : (
+            <div className="mt-3 flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+              <Navigation className="w-4 h-4 shrink-0" />
+              Прибытие зафиксировано: {fmtDateTime(task.arrivalAt)} · GPS приложен к задаче
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl p-4 border border-slate-100">

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Task } from '../../types';
+import { compressImage, pickPhoto } from '../../utils/image';
 import {
   ArrowLeft, Camera, MessageSquare, Send, CheckCircle2, X, Plus, Trash2, ListChecks,
+  AlertTriangle, Image as ImageIcon, Zap,
 } from 'lucide-react';
 
 interface Props {
@@ -11,6 +13,16 @@ interface Props {
   onDone: () => void;
 }
 
+// Типовые ситуации — вместо набора текста. Один тап = готовый комментарий.
+const QUICK_REASONS = [
+  'Всё сделано, фото прилагаю',
+  'Требуются материалы',
+  'Нет доступа на объект',
+  'Клиент перенёс время',
+  'Обнаружен дефект, нужна помощь',
+  'Работа частично выполнена',
+];
+
 export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
   const {
     addPhoto, deletePhoto, updateTaskStatus, showToast, authMode,
@@ -18,32 +30,30 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
   } = useApp();
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [newItem, setNewItem] = useState('');
   const isDemo = authMode === 'demo';
 
-  const handleAddPhoto = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          addPhoto(task.id, {
-            taskId: task.id,
-            url: ev.target?.result as string,
-            category: 'result',
-            comment: '',
-            fileSizeKb: Math.round(file.size / 1024),
-          });
-          showToast('Фото добавлено');
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
+  // Добавление фото: камера или галерея + сжатие
+  const handleAddPhoto = async (fromCamera: boolean) => {
+    try {
+      const file = await pickPhoto(fromCamera);
+      if (!file) return;
+      setIsProcessingPhoto(true);
+      const prepared = await compressImage(file);
+      addPhoto(task.id, {
+        taskId: task.id,
+        url: prepared.dataUrl,
+        category: 'result',
+        comment: '',
+        fileSizeKb: prepared.sizeKb,
+      });
+      showToast('Фото добавлено (сжато до ' + prepared.sizeKb + ' КБ)');
+    } catch (e) {
+      showToast('Не удалось загрузить фото. Попробуйте другое изображение.');
+    } finally {
+      setIsProcessingPhoto(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -53,6 +63,11 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
     showToast('Отправлено на проверку');
     setIsSubmitting(false);
     onDone();
+  };
+
+  // Чипс добавляет типовой текст (не заменяет уже написанное)
+  const applyQuickReason = (text: string) => {
+    setComment((prev) => (prev.trim() ? prev.trim() + '. ' + text : text));
   };
 
   const doneCount = task.checklist.filter((c) => c.isCompleted).length;
@@ -77,7 +92,20 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
           </div>
         )}
 
-        {/* ===== ЧЕК-ЛИСТ ===== */}
+        {/* ===== БАННЕР «НА ДОРАБОТКЕ» ===== */}
+        {task.needsRework && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <span className="text-sm font-black text-red-700">Диспетчер вернул отчёт на доработку</span>
+            </div>
+            <div className="text-sm text-red-800 leading-relaxed">
+              {task.reworkComment || 'Доработайте отчёт и отправьте повторно'}
+            </div>
+          </div>
+        )}
+
+        {/* ===== ЧЕК-ЛИСТ (крупные пункты под палец) ===== */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -95,32 +123,31 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
 
           <div className="space-y-2">
             {task.checklist.map((item) => (
-              <div key={item.id} className="flex items-start gap-2.5">
-                <button
-                  onClick={() => toggleChecklistItem(task.id, item.id)}
-                  className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+              <button
+                key={item.id}
+                onClick={() => toggleChecklistItem(task.id, item.id)}
+                className={`w-full min-h-[52px] flex items-center gap-3 px-3 py-2.5 rounded-2xl border-2 text-left active:scale-[0.98] transition-all ${
+                  item.isCompleted
+                    ? 'bg-emerald-50 border-[#2CCB70]'
+                    : 'bg-slate-50 border-slate-200 hover:border-[#168BEA]'
+                }`}
+              >
+                <span
+                  className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center shrink-0 ${
                     item.isCompleted ? 'bg-[#2CCB70] border-[#2CCB70]' : 'border-slate-300 bg-white'
                   }`}
                 >
-                  {item.isCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm ${item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                    {item.title}
-                    {item.isRequired && <span className="ml-1 text-[10px] text-amber-500 font-bold">обяз.</span>}
-                  </div>
-                </div>
-                <button
-                  onClick={() => removeChecklistItem(task.id, item.id)}
-                  className="p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  {item.isCompleted && <CheckCircle2 className="w-5 h-5 text-white" />}
+                </span>
+                <span className={`flex-1 text-[15px] font-medium leading-snug ${item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                  {item.title}
+                  {item.isRequired && <span className="ml-1.5 text-[10px] text-amber-500 font-bold">обяз.</span>}
+                </span>
+              </button>
             ))}
           </div>
 
-          {/* Добавить свой пункт */}
+          {/* Добавить свой пункт (необязательно) */}
           <div className="mt-3 flex gap-2">
             <input
               value={newItem}
@@ -131,8 +158,8 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
                   setNewItem('');
                 }
               }}
-              placeholder="Добавить свой пункт чек-листа..."
-              className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-[#168BEA]"
+              placeholder="Добавить свой пункт (необязательно)..."
+              className="flex-1 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-[#168BEA]"
             />
             <button
               onClick={() => {
@@ -141,7 +168,7 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
                   setNewItem('');
                 }
               }}
-              className="px-3 py-2 rounded-xl bg-[#168BEA] text-white font-bold flex items-center gap-1 active:scale-95 transition-transform"
+              className="px-3 py-2.5 rounded-xl bg-[#168BEA] text-white font-bold flex items-center gap-1 active:scale-95 transition-transform"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -174,27 +201,60 @@ export const WorkScreen: React.FC<Props> = ({ task, onBack, onDone }) => {
             </div>
           )}
 
-          <button
-            onClick={handleAddPhoto}
-            className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center active:scale-[0.98] transition-transform hover:border-[#168BEA]"
-          >
-            <Camera className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <div className="text-sm font-bold text-slate-700">Добавить фото</div>
-            <div className="text-xs text-slate-400 mt-1">Нажми, чтобы сделать или выбрать фото</div>
-          </button>
+          {isProcessingPhoto ? (
+            <div className="w-full border-2 border-dashed border-[#168BEA] bg-blue-50/50 rounded-2xl p-5 text-center">
+              <div className="text-sm font-bold text-[#168BEA]">Обрабатываю фото...</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleAddPhoto(true)}
+                className="border-2 border-dashed border-[#168BEA] bg-[#168BEA]/5 rounded-2xl p-4 text-center active:scale-[0.98] transition-transform hover:border-[#168BEA]"
+              >
+                <Camera className="w-7 h-7 text-[#168BEA] mx-auto mb-1.5" />
+                <div className="text-sm font-bold text-[#168BEA]">Сделать фото</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">Камера телефона</div>
+              </button>
+              <button
+                onClick={() => handleAddPhoto(false)}
+                className="border-2 border-dashed border-slate-300 rounded-2xl p-4 text-center active:scale-[0.98] transition-transform hover:border-[#2CCB70]"
+              >
+                <ImageIcon className="w-7 h-7 text-[#2CCB70] mx-auto mb-1.5" />
+                <div className="text-sm font-bold text-slate-700">Из галереи</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">Выбрать готовое</div>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* ===== КОММЕНТАРИЙ ===== */}
+        {/* ===== КОММЕНТАРИЙ: КНОПКИ ВМЕСТО ТЕКСТА ===== */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100">
           <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-4 h-4 text-[#168BEA]" />
+            <span className="text-xs font-bold text-slate-500">Быстрый комментарий — просто нажми</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            {QUICK_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => applyQuickReason(r)}
+                className="px-3 py-2 rounded-xl bg-[#168BEA]/10 text-[#168BEA] text-xs font-bold active:scale-95 transition-transform hover:bg-[#168BEA]/20"
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 mb-2">
             <MessageSquare className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-bold text-slate-500">Комментарий</span>
+            <span className="text-xs font-bold text-slate-500">Или допиши своими словами (необязательно)</span>
           </div>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Опиши, что было сделано..."
-            className="w-full h-24 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none"
+            placeholder="Комментарий..."
+            className="w-full h-20 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none border border-slate-100 rounded-xl p-2.5"
           />
         </div>
 

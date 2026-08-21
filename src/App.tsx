@@ -3,7 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { MobileFrame } from './components/mobile/MobileFrame';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { DemoGuide } from './components/mobile/DemoGuide';
-import { resolveAuthCode, WORKER_CODE, MANAGER_CODE } from './auth';
+import { resolveAuthCode, resolveUserCode, getAccessCodes } from './auth';
 import {
   Wrench, CheckCircle2, Key, ArrowRight, LogOut, GraduationCap, ShieldCheck,
 } from 'lucide-react';
@@ -31,7 +31,8 @@ const LoginScreen: React.FC = () => {
       return;
     }
     setLoginError('');
-    login(resolved);
+    // Личный код мастера → панель именно этого мастера
+    login(resolved, resolved === 'worker' ? (resolveUserCode(loginCode) ?? undefined) : undefined);
   };
 
   return (
@@ -76,8 +77,8 @@ const LoginScreen: React.FC = () => {
           </button>
 
           <p className="mt-4 text-center text-[11px] text-slate-500 leading-relaxed">
-            Код работника — <span className="font-bold text-slate-300">{WORKER_CODE}</span><br />
-            Код руководителя — <span className="font-bold text-slate-300">{MANAGER_CODE}</span>
+            Код работника — <span className="font-bold text-slate-300">{getAccessCodes().worker}</span><br />
+            Код руководителя — <span className="font-bold text-slate-300">{getAccessCodes().manager}</span>
           </p>
         </div>
 

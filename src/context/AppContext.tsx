@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Task, User, TaskStatus, ChecklistItem, TaskPhoto, TaskMaterial, OfflineAction, UserRole, PhotoCategory, ChatMessage } from '../types';
 import { INITIAL_TASKS, INITIAL_USERS, CHECKLIST_TEMPLATES } from '../data/mockData';
 import { db, isIndexedDBAvailable } from '../db';
-import { getLocationSnapshot, initGeoTracking } from '../utils/geo';
+import { getLocationSnapshot, initGeoTracking, getCurrentPosition } from '../utils/geo';
 import { AuthMode, persistAuthMode, readPersistedAuthMode } from '../auth';
 import {
   loadTasks, createTask as createSupabaseTask, updateTask as updateSupabaseTask,
@@ -19,12 +19,15 @@ interface AppContextType {
   setCurrentRole: (role: UserRole) => void;
   // Авторизация: режим сессии (worker / manager / demo) или null — экран входа
   authMode: AuthMode | null;
-  login: (mode: 'worker' | 'manager') => void;
+  login: (mode: 'worker' | 'manager', userId?: string) => void;
   enterDemo: () => void;
   logout: () => void;
   hasChosenRole: boolean;
   currentUser: User;
   setCurrentUser: (user: User) => void;
+  // Пользователи: создание/редактирование из админ-панели
+  addUser: (data: { fullName: string; phone: string; specializations: string[]; role?: UserRole }) => User;
+  deactivateUser: (userId: string) => void;
   activeTaskId: string | null;
   setActiveTaskId: (id: string | null) => void;
   activeTask: Task | null;
@@ -47,6 +50,8 @@ interface AppContextType {
   reassignTask: (taskId: string, userId: string) => void;
   // Взятие задачи работником (с "витрины" всех задач)
   takeTask: (taskId: string) => void;
+  // Фиксация прибытия на объект (кнопка «Я на объекте» — GPS + время)
+  recordArrival: (taskId: string) => Promise<void>;
   // Чек-листы: добавление/удаление пунктов работником
   addChecklistItem: (taskId: string, title: string) => void;
   removeChecklistItem: (taskId: string, itemId: string) => void;
@@ -55,7 +60,7 @@ interface AppContextType {
   setUserPresence: (userId: string, presence: 'online' | 'offline') => void;
   // Chat with technicians
   chatMessages: ChatMessage[];
-  sendChatMessage: (text: string, taskId?: string) => void;
+  sendChatMessage: (text: string, taskId?: string, recipientId?: string) => void;
   // UI helpers
   notificationsCount: number;
   clearNotifications: () => void;
@@ -119,7 +124,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
-  const [users] = useState<User[]>(INITIAL_USERS);
+  // Пользователи: моки + созданные в админ-панели (сохраняются в localStorage)
+  const [users, setUsers] = useState<User[]>(() => {
+    try {
+      const saved = localStorage.getItem('fsm_users');
+      if (saved) {
+        const parsed = JSON.parse(saved) as User[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_USERS;
+  });
+
+  // Сохраняем пользователей при изменении
+  useEffect(() => {
+    try {
+      localStorage.setItem('fsm_users', JSON.stringify(users));
+    } catch {
+      // ignore
+    }
+  }, [users]);
+
+  // Создание пользователя из админ-панели (мастер с личным кодом входа)
+  const addUser = (data: { fullName: string; phone: string; specializations: string[]; role?: UserRole }) => {
+    const newUser: User = {
+      id: 'user-' + Math.random().toString(36).substring(2, 8),
+      fullName: data.fullName.trim(),
+      phone: data.phone.trim(),
+      email: '',
+      role: data.role || 'technician',
+      avatar: '', // пустая аватарка → цветной круг с инициалами
+      specializations: data.specializations.length ? data.specializations : ['Общие работы'],
+      isActive: true,
+      status: 'available',
+    };
+    setUsers((prev) => [...prev, newUser]);
+    showToast(`Сотрудник «${newUser.fullName}» добавлен`);
+    return newUser;
+  };
+
+  const deactivateUser = (userId: string) => {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isActive: false } : u)));
+    showToast('Сотрудник деактивирован');
+  };
+
 
   // Realtime: подписка на изменения в Supabase (задачи, чат, присутствие)
   useEffect(() => {
@@ -282,6 +332,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return buildInitialChat();
   });
 
+  // Чат сохраняется в localStorage — переживает перезагрузку и синхронизируется между вкладками
+  useEffect(() => {
+    try {
+      localStorage.setItem('fsm_chat', JSON.stringify(chatMessages));
+    } catch {
+      // ignore
+    }
+  }, [chatMessages]);
+
   // Синхронизация ТОЛЬКО в IndexedDB (localStorage не используем — данные сбрасываются при обновлении)
   useEffect(() => {
     if (isIndexedDBAvailable()) {
@@ -294,13 +353,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [offlineQueue]);
 
   // When switching role, pick suitable default user
+  // (не трогаем пользователя, если он уже соответствует роли — например, вошёл по личному коду)
   useEffect(() => {
     if (currentRole === 'technician') {
-      setCurrentUser(users[0]);
+      setCurrentUser((prev) => (prev.role === 'technician' ? prev : users.find((u) => u.role === 'technician') || INITIAL_USERS[0]));
     } else if (currentRole === 'dispatcher') {
-      setCurrentUser(users[3]);
+      setCurrentUser((prev) => (prev.role === 'dispatcher' ? prev : users.find((u) => u.role === 'dispatcher') || INITIAL_USERS[3]));
     } else {
-      setCurrentUser(users[4]);
+      setCurrentUser((prev) => (prev.role === 'admin' ? prev : users.find((u) => u.role === 'admin') || INITIAL_USERS[4]));
     }
   }, [currentRole, users]);
 
@@ -396,6 +456,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           actualStart,
           updatedAt: timestamp,
           syncPending: !isNowOnline,
+          // Повторная отправка на проверку снимает флаг «на доработке»
+          needsRework: newStatus === 'under_review' ? false : t.needsRework,
+          reworkComment: newStatus === 'under_review' ? undefined : t.reworkComment,
           statusHistory: newHistory,
         };
       })
@@ -714,6 +777,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const reviewTaskReport = (taskId: string, approved: boolean, comment?: string) => {
     // По спецификации 5 статусов: отклонённый отчёт возвращается в «В работе»
+    // + у мастера появляется пометка «На доработке» с комментарием диспетчера.
     const nextStatus: TaskStatus = approved ? 'completed' : 'in_progress';
     const now = new Date().toISOString();
 
@@ -723,6 +787,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ...t,
           status: nextStatus,
+          needsRework: approved ? false : true,
+          reworkComment: approved ? undefined : (comment || 'Доработайте отчёт и отправьте повторно'),
           updatedAt: now,
           statusHistory: [
             ...t.statusHistory,
@@ -815,6 +881,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateSupabaseTask(taskId, { assigned_to: currentUser.id, status: 'assigned' });
   };
 
+  // «Я на объекте»: фиксируем время прибытия и GPS-координаты одной кнопкой
+  const recordArrival = async (taskId: string) => {
+    const loc = await getCurrentPosition();
+    const now = new Date().toISOString();
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, arrivalAt: now, arrivalLocation: loc, updatedAt: now }
+          : t
+      )
+    );
+    const time = new Date(now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    showToast(`Прибытие зафиксировано в ${time} — координаты приложены к задаче`);
+  };
+
   const addChecklistItem = (taskId: string, title: string) => {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -845,7 +926,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Пункт чек-листа удалён');
   };
 
-  const sendChatMessage = (text: string, taskId?: string) => {
+  const sendChatMessage = (text: string, taskId?: string, recipientId?: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -855,6 +936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       senderId: currentUser.id,
       senderName: currentUser.fullName,
       senderRole: currentRole,
+      recipientId,
       text: trimmed,
       timestamp: new Date().toISOString(),
     };
@@ -879,7 +961,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setUnreadTech(v => v + 1);
     }
-    showToast('Сообщение отправлено в чат');
+    showToast(recipientId ? 'Личное сообщение отправлено' : 'Сообщение отправлено в чат');
   };
 
   const clearNotifications = () => {
@@ -906,13 +988,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ===== Авторизация =====
   // Вход по корректному коду: открывает ТОЛЬКО нужную панель.
-  const login = (mode: 'worker' | 'manager') => {
+  // Личный код мастера → панель этого конкретного мастера (userId).
+  const login = (mode: 'worker' | 'manager', userId?: string) => {
     if (mode === 'worker') {
       setCurrentRole('technician');
-      setCurrentUser(INITIAL_USERS[0]); // Алексей Смирнов (мастер)
+      const target = userId ? users.find((u) => u.id === userId) : null;
+      setCurrentUser(target || users[0] || INITIAL_USERS[0]); // по умолчанию первый мастер
     } else {
       setCurrentRole('admin');
-      setCurrentUser(INITIAL_USERS[4]); // Максим Громов (руководитель)
+      setCurrentUser(users.find((u) => u.role === 'admin') || INITIAL_USERS[4]);
     }
     setAuthMode(mode);
     persistAuthMode(mode);
@@ -940,13 +1024,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         currentRole,
         setCurrentRole,
-        authMode,
-        login,
-        enterDemo,
-        logout,
-        hasChosenRole,
-        currentUser,
-        setCurrentUser,
+    authMode,
+    login,
+    enterDemo,
+    logout,
+    hasChosenRole,
+    currentUser,
+    setCurrentUser,
+    addUser,
+    deactivateUser,
         activeTaskId,
         setActiveTaskId,
         activeTask,
@@ -963,10 +1049,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addMaterial,
         completeTask,
         createNewTask,
-        reviewTaskReport,
-        reassignTask,
-        takeTask,
-        addChecklistItem,
+    reviewTaskReport,
+    reassignTask,
+    takeTask,
+    recordArrival,
+    addChecklistItem,
         removeChecklistItem,
         presence,
         setUserPresence,

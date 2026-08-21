@@ -128,6 +128,12 @@ export interface Task {
   syncPending?: boolean;
   // Визуальная пометка просрочки (статус остаётся из 5 базовых)
   isOverdue?: boolean;
+  // Возврат на доработку: статус остаётся «В работе», но мастер видит пометку и комментарий
+  needsRework?: boolean;
+  reworkComment?: string;
+  // Фиксация прибытия на объект (кнопка «Я на объекте»)
+  arrivalAt?: string;
+  arrivalLocation?: { lat: number; lng: number };
 }
 
 export interface OfflineAction {
@@ -140,13 +146,16 @@ export interface OfflineAction {
   retryCount: number;
 }
 
-// Сообщение в чате между диспетчером и рабочими
+// Сообщение в чате между диспетчером и рабочими.
+// recipientId отсутствует — сообщение в общий чат;
+// recipientId задан — личное сообщение между двумя пользователями.
 export interface ChatMessage {
   id: string;
   taskId?: string;
   senderId: string;
   senderName: string;
   senderRole: UserRole;
+  recipientId?: string;
   text: string;
   timestamp: string;
 }
