@@ -3,6 +3,8 @@ import { AppProvider, useApp } from './context/AppContext';
 import { MobileFrame } from './components/mobile/MobileFrame';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { DemoGuide } from './components/mobile/DemoGuide';
+import { ProfileModal } from './components/mobile/ProfileModal';
+import { Avatar } from './components/shared/Avatar';
 import { resolveAuthCode, resolveUserCode, getAccessCodes } from './auth';
 import {
   Wrench, CheckCircle2, Key, ArrowRight, LogOut, GraduationCap, ShieldCheck,
@@ -116,6 +118,7 @@ const LoginScreen: React.FC = () => {
 // ============ ПАНЕЛЬ РАБОТНИКА (мастер) ============
 const WorkerView: React.FC<{ isDemo: boolean }> = ({ isDemo }) => {
   const { currentUser, logout, presence, setUserPresence } = useApp();
+  const [showProfile, setShowProfile] = useState(false);
   const isOnline = (presence[currentUser.id] ?? 'online') === 'online';
 
   return (
@@ -146,6 +149,15 @@ const WorkerView: React.FC<{ isDemo: boolean }> = ({ isDemo }) => {
           {isOnline ? 'Онлайн' : 'Офлайн'}
         </button>
 
+        {/* Мой профиль — кружок-аватар в шапке */}
+        <button
+          onClick={() => setShowProfile(true)}
+          className="shrink-0 rounded-full ring-2 ring-offset-1 ring-[#168BEA]/40 active:scale-90 transition-transform"
+          title="Мой профиль"
+        >
+          <Avatar user={currentUser} size={34} />
+        </button>
+
         <button
           onClick={logout}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all"
@@ -159,6 +171,7 @@ const WorkerView: React.FC<{ isDemo: boolean }> = ({ isDemo }) => {
       </main>
 
       {isDemo && <DemoGuide />}
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </div>
   );
 };

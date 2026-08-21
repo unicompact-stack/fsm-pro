@@ -5,7 +5,7 @@ export type TaskStatus =
   | 'assigned'              // Назначена (фиолетовый)
   | 'in_progress'           // В работе (синий)
   | 'under_review'          // На проверке (пурпурный)
-  | 'completed';            // Выполнена (зелёный)
+  | 'completed';            // Завершена (принята руководителем)
 
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
@@ -21,6 +21,9 @@ export interface User {
   status: 'available' | 'busy' | 'offline';
   // Заблокирован руководителем: по коду не пустит («уволен» / «заморожен»)
   isBlocked?: boolean;
+  // Профиль мастера — заполняет сам мастер (админ только смотрит)
+  about?: string;
+  age?: string;
   currentLocation?: {
     lat: number;
     lng: number;

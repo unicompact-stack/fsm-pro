@@ -566,7 +566,18 @@ export const AdminDashboard: React.FC = () => {
                           {active > 0 && <> · В работе: <b className="text-[#168BEA]">{active}</b></>}
                           {' · '}
                           <a href={`tel:${tech.phone}`} className="text-[#168BEA] font-bold">{tech.phone}</a>
+                          {tech.age && <> · {tech.age} лет</>}
                         </div>
+
+                        {(tech.about || tech.avatar) && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-white border border-[#E2E8F0] flex items-start gap-2.5">
+                            <Avatar user={tech} size={30} className="shrink-0" />
+                            <div className="min-w-0">
+                              {tech.about && <div className="text-[11px] text-[#7D8790] leading-relaxed italic">«{tech.about}»</div>}
+                              {!tech.about && <div className="text-[10px] text-[#94A3B8]">Профиль оформлен (фото есть), «о себе» пока пусто</div>}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Действия: найти на карте, блокировка, увольнение */}
                         <div className="mt-2.5 flex flex-wrap items-center gap-2">

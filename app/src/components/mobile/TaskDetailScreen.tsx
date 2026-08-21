@@ -20,16 +20,27 @@ const fmtDateTime = (iso?: string) => {
 };
 
 export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork }) => {
-  const { updateTaskStatus, showToast, recordArrival } = useApp();
+  const { updateTaskStatus, showToast, recordArrival, currentUser, takeTask } = useApp();
   const [isFixingLocation, setIsFixingLocation] = useState(false);
+
+  const isMine = task.assignedUserId === currentUser.id;
+  const isFree = !task.assignedUserId;
+  const isOthers = !isMine && !isFree; // выполняет другой мастер — только просмотр
 
   // «Начать работу» — фиксируем дату и время старта (статус «В работе»).
   const handleStartWork = () => {
+    if (!isMine) return;
     if (task.status !== 'in_progress') {
       updateTaskStatus(task.id, 'in_progress', 'Мастер приступил к работе');
       showToast('Зафиксировано время начала работы');
     }
     onStartWork();
+  };
+
+  // Взять свободную задачу себе
+  const handleTakeTask = () => {
+    takeTask(task.id);
+    showToast('Задача ваша — нажмите «Начать работу»');
   };
 
   // «Я на объекте» — одной кнопкой фиксируем GPS и время прибытия
@@ -72,8 +83,8 @@ export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork })
           </div>
           <div className="text-sm text-slate-900">{task.address.full}</div>
 
-          {/* Кнопка «Я на объекте»: GPS + время одной кнопкой, без ввода текста */}
-          {!task.arrivalAt ? (
+          {/* Кнопка «Я на объекте»: GPS + время одной кнопкой — только для своей задачи */}
+          {isMine && !task.arrivalAt ? (
             <button
               onClick={handleArrival}
               disabled={isFixingLocation}
@@ -182,13 +193,59 @@ export const TaskDetailScreen: React.FC<Props> = ({ task, onBack, onStartWork })
           </div>
         )}
 
-        <button
-          onClick={handleStartWork}
-          className="w-full bg-[#168BEA] text-white font-bold py-4 rounded-2xl active:scale-[0.98] transition-transform shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
-        >
-          <PlayCircle className="w-5 h-5" />
-          {task.status === 'in_progress' ? 'Продолжить работу' : 'Начать работу'}
-        </button>
+        {/* ===== КНОПКИ ДЕЙСТВИЙ — по статусу и принадлежности ===== */}
+        {isOthers && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center">
+            <div className="text-sm font-bold text-slate-500">
+              Задача другого мастера — только просмотр
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              Выполняет: {task.assignedUser?.fullName || '—'}
+            </div>
+          </div>
+        )}
+
+        {isFree && (
+          <button
+            onClick={handleTakeTask}
+            className="w-full bg-[#2CCB70] text-white font-bold py-4 rounded-2xl active:scale-[0.98] transition-transform shadow-lg shadow-green-500/25 flex items-center justify-center gap-2"
+          >
+            <PlayCircle className="w-5 h-5" />
+            Взяться за задачу
+          </button>
+        )}
+
+        {isMine && (task.status === 'new' || task.status === 'assigned') && (
+          <button
+            onClick={handleStartWork}
+            className="w-full bg-[#168BEA] text-white font-bold py-4 rounded-2xl active:scale-[0.98] transition-transform shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+          >
+            <PlayCircle className="w-5 h-5" />
+            Начать работу
+          </button>
+        )}
+
+        {isMine && task.status === 'in_progress' && (
+          <button
+            onClick={handleStartWork}
+            className="w-full bg-[#168BEA] text-white font-bold py-4 rounded-2xl active:scale-[0.98] transition-transform shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+          >
+            <PlayCircle className="w-5 h-5" />
+            Продолжить работу
+          </button>
+        )}
+
+        {isMine && task.status === 'under_review' && (
+          <div className="w-full bg-slate-100 border border-slate-200 text-slate-400 font-bold py-4 rounded-2xl text-center text-sm select-none">
+            Отправлено на проверку — ждём руководителя
+          </div>
+        )}
+
+        {(isMine || isOthers) && task.status === 'completed' && (
+          <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold py-4 rounded-2xl text-center text-sm select-none">
+            Задача завершена и принята руководителем
+          </div>
+        )}
       </div>
     </div>
   );

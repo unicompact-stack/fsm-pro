@@ -32,6 +32,8 @@ interface AppContextType {
   blockUser: (userId: string, blocked: boolean) => void;
   deleteUser: (userId: string) => void;
   fireEveryone: () => void;
+  // Профиль мастера: редактирует сам (аватар, о себе, возраст)
+  updateMyProfile: (data: { about?: string; age?: string; avatar?: string }) => void;
   activeTaskId: string | null;
   setActiveTaskId: (id: string | null) => void;
   activeTask: Task | null;
@@ -203,6 +205,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveAccessCodes({ ...codes, personal });
 
     showToast(target ? `«${target.fullName}» уволен — задачи освобождены` : 'Сотрудник удалён');
+  };
+
+  // Профиль мастера: обновляет свои данные (аватар, о себе, возраст)
+  const updateMyProfile = (data: { about?: string; age?: string; avatar?: string }) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? { ...u, ...data } : u))
+    );
+    setCurrentUser((prev) => ({ ...prev, ...data }));
+    showToast('Профиль обновлён');
   };
 
   // «Уволить всех»: остаётся только руководство, задачи освобождаются, коды мастеров стираются
@@ -894,7 +905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    showToast(approved ? 'Отчёт принят и задание переведено в "Завершена"' : 'Отчёт отправлен мастеру на доработку');
+    showToast(approved ? 'Отчёт принят — задача переведена в «Завершена»' : 'Отчёт отправлен мастеру на доработку');
   };
 
   const reassignTask = (taskId: string, userId: string) => {
@@ -1131,6 +1142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     blockUser,
     deleteUser,
     fireEveryone,
+    updateMyProfile,
         activeTaskId,
         setActiveTaskId,
         activeTask,

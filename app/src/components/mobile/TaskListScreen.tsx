@@ -13,7 +13,7 @@ const STATUS_LABELS: Record<string, string> = {
   assigned: 'Назначена',
   in_progress: 'В работе',
   under_review: 'На проверке',
-  completed: 'Выполнена',
+  completed: 'Завершена',
 };
 
 const STATUS_COLORS: Record<string, string> = {

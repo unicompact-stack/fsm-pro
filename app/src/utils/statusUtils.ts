@@ -43,7 +43,7 @@ export const STATUS_CONFIG: Record<TaskStatus, StatusConfig> = {
     lightBg: 'bg-[#9546D8]/10 text-[#7C3AED]',
   },
   completed: {
-    label: 'Выполнена',
+    label: 'Завершена',
     colorHex: '#2CCB70',
     badgeBg: 'bg-[#2CCB70]',
     badgeText: 'text-white',
