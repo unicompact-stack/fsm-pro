@@ -1,11 +1,14 @@
 /**
  * sw.js — Service Worker для FSM PRO.
- * Стратегия: cache-first для статики, network-fallback для остального.
- * Позволяет приложению открываться мгновенно без сети (offline-first).
- * Адаптирован для работы из подпапки (GitHub Pages) через self.registration.scope.
+ * Стратегия обновлений (исправлена 2026-08-21):
+ *  - Навигация (index.html): СНАЧАЛА СЕТЬ → при офлайне кэш.
+ *    Новая версия на сервере = новая версия у пользователя после обычного обновления страницы.
+ *  - Хэшированные ассеты (/assets/*.js|css): cache-first — их имена меняются при каждой сборке.
+ *  - При активации новой версии SW старый кэш удаляется, страница перезагружается (см. main.tsx).
+ * Работает из подпапки (GitHub Pages) через self.registration.scope.
  */
 
-const CACHE_NAME = 'fsm-pro-cache-v1';
+const CACHE_NAME = 'fsm-pro-cache-v3';
 const SCOPE = self.registration.scope; // e.g. https://user.github.io/repo/
 
 const STATIC_ASSETS = [
@@ -27,7 +30,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Активация: чистим старые кэши
+// Активация: чистим кэши ВСЕХ старых версий
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -39,29 +42,56 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Стратегия: cache-first для GET-запросов, fallback на сеть + кэширование
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
+  // Только свой origin (не трогаем внешние запросы)
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-      return fetch(request)
+  // 1) Навигация: сеть первым делом — пользователь всегда видит свежую версию, офлайн — кэш
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
         .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(SCOPE, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(SCOPE).then((c) => c || caches.match(request)))
+    );
+    return;
+  }
+
+  // 2) Хэшированные ассеты сборки: cache-first (имена уникальны для каждой версии)
+  if (url.pathname.includes('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
           if (!response || response.status !== 200) return response;
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
-        })
-        .catch(() => {
-          // Офлайн и нет в кэше — отдаём индекс для навигационных запросов
-          if (request.mode === 'navigate') {
-            return caches.match(SCOPE);
-          }
-          return new Response('Offline', { status: 503, statusText: 'Offline' });
         });
-    })
+      })
+    );
+    return;
+  }
+
+  // 3) Остальное (иконки, manifest): сеть → кэш → кэш-обновление в фоне
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
