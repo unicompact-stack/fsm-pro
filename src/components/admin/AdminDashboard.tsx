@@ -897,6 +897,9 @@ export const AdminDashboard: React.FC = () => {
                 <div className="text-[11px] text-slate-400 leading-relaxed">
                   Скоро: смена цветовой темы, тёмный режим, экспорт отчётов.
                 </div>
+                <div className="mt-2 text-[11px] font-bold text-slate-400">
+                  Сборка: {__APP_BUILD__}
+                </div>
               </div>
             </div>
           </div>

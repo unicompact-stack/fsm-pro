@@ -94,6 +94,11 @@ const LoginScreen: React.FC = () => {
         <div className="mt-8 text-center text-xs text-slate-500">
           Демо-режим — учебный. Реальные коды входа ведут в рабочие панели.
         </div>
+
+        {/* Номер сборки — чтобы сразу понимать, какая версия перед глазами */}
+        <div className="mt-3 text-center text-[11px] text-slate-600">
+          Сборка: <span className="font-bold text-slate-400">{__APP_BUILD__}</span>
+        </div>
       </div>
     </div>
   );

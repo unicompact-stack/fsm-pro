@@ -83,6 +83,11 @@ export const HelpScreen: React.FC = () => {
             <div className="text-xs text-slate-500">Вернуться к экрану входа</div>
           </div>
         </button>
+
+        {/* Номер сборки — быстрая проверка, какая версия запущена */}
+        <div className="text-center text-[11px] text-slate-400 pt-1">
+          FSM PRO · сборка: <span className="font-bold">{__APP_BUILD__}</span>
+        </div>
       </div>
     </div>
   );
