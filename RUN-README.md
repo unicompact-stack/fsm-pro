@@ -16,8 +16,8 @@
 3. Выполните по очереди:
 
 ```bash
-npm install      # скачать зависимости (2–3 минуты, один раз)
-npm run dev      # запустить сервер
+npm --prefix app install   # скачать зависимости (2–3 минуты, один раз)
+npm --prefix app run dev   # запустить сервер
 ```
 
 4. Откройте в браузере **http://localhost:5173**
@@ -36,7 +36,7 @@ npm run dev      # запустить сервер
 **Через Python** (обычно уже установлен на macOS/Linux; на Windows — из Microsoft Store):
 
 ```bash
-cd fsm-pro/dist
+cd fsm-pro/dist  # (сборка уже внутри архива)
 python -m http.server 8080
 ```
 
@@ -71,8 +71,8 @@ GITHUB_TOKEN=ваш_токен
 2. Выполните:
 
 ```bash
-npm install
-npm run build
+npm --prefix app install
+npm --prefix app run build
 python deploy_gh.py
 ```
 
